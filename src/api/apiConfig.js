@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8083/api";
+const BASE_URL = "http://localhost:8000/api";
 const TIMEOUT = 5000;
 
 // ⚙️ Hàm fetch có timeout
@@ -54,12 +54,14 @@ const request = async (endpoint, method = "GET", data = null) => {
     return json; // ✅ Thành công
 
   } catch (error) {
-    if (error.message === "Request timeout") {
+    const errorMessage = error?.message || ""; 
+
+    if (errorMessage === "Request timeout") {
       console.error("⏱️ Timeout: Server không phản hồi.");
-    } else if (error.message.includes("Failed to fetch")) {
+    } else if (errorMessage.includes("Failed to fetch")) {
       console.error("🌐 Network Error: Không thể kết nối server.");
     } else {
-      console.error("❌ Lỗi không xác định:", error);
+      console.error("❌ Lỗi hệ thống:", error);
     }
     throw error;
   }
