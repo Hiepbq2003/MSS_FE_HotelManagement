@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Container, Row, Col, Form, Button, Alert, Spinner } from "react-bootstrap";
 import { useParams, useNavigate } from "react-router-dom";
-import api from "../api/apiConfig"; // Giữ nguyên, không sửa
+import api from "../api/apiConfig";
 
 const BookingPage = () => {
   const { id } = useParams();
@@ -13,9 +13,8 @@ const BookingPage = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [roomAllocations, setRoomAllocations] = useState([]); // Lưu phân bổ phòng
 
-  const [requiredRooms, setRequiredRooms] = useState(1);
-  
   const [form, setForm] = useState({
     guestName: localStorage.getItem("fullName") || "",
     email: localStorage.getItem("email") || "",
@@ -40,7 +39,6 @@ const BookingPage = () => {
   useEffect(() => {
     const loadRoom = async () => {
       try {
-        // API Gateway sẽ route đến Room Service
         const data = await api.get(`/room-type/${id}`);
         setRoom(data);
       } catch (err) {
@@ -53,20 +51,78 @@ const BookingPage = () => {
     loadRoom();
   }, [id]);
 
-  // Tính số phòng cần dựa trên số khách
+  // Tính toán phân bổ phòng dựa trên số khách
   useEffect(() => {
     if (!room) return;
     
     const adult = Number(form.adultCount) || 0;
     const child = Number(form.childCount) || 0;
-    
-    // Công thức: người lớn = 1, trẻ em = 0.5
-    const totalGuestWeight = adult + (child * 0.5);
     const capacity = room.capacity || 1;
+    
+    // Tính tổng trọng số khách (người lớn = 1, trẻ em = 0.5)
+    const totalGuestWeight = adult + (child * 0.5);
+    
+    // Tính số phòng cần thiết
     const roomsNeeded = Math.ceil(totalGuestWeight / capacity);
     
-    setRequiredRooms(roomsNeeded);
+    // Phân bổ khách vào các phòng
+    const allocations = [];
+    let remainingAdults = adult;
+    let remainingChildren = child;
+    
+    for (let i = 0; i < roomsNeeded; i++) {
+      // Tính sức chứa còn lại của phòng này
+      let roomCapacity = capacity;
+      let adultsInRoom = 0;
+      let childrenInRoom = 0;
+      
+      // Ưu tiên phân bổ người lớn trước
+      while (roomCapacity >= 1 && remainingAdults > 0) {
+        adultsInRoom++;
+        remainingAdults--;
+        roomCapacity -= 1;
+      }
+      
+      // Sau đó phân bổ trẻ em (mỗi trẻ em chiếm 0.5)
+      while (roomCapacity >= 0.5 && remainingChildren > 0) {
+        childrenInRoom++;
+        remainingChildren--;
+        roomCapacity -= 0.5;
+      }
+      
+      allocations.push({
+        roomNumber: i + 1,
+        adultCount: adultsInRoom,
+        childCount: childrenInRoom,
+        totalWeight: adultsInRoom + (childrenInRoom * 0.5)
+      });
+    }
+    
+    setRoomAllocations(allocations);
   }, [form.adultCount, form.childCount, room]);
+
+  // Validate form
+  const validateForm = () => {
+    if (form.adultCount < 1) {
+      setError("Phải có ít nhất 1 người lớn");
+      return false;
+    }
+    
+    if (!form.checkInDate || !form.checkOutDate) {
+      setError("Vui lòng chọn ngày nhận và trả phòng");
+      return false;
+    }
+    
+    const checkIn = new Date(form.checkInDate);
+    const checkOut = new Date(form.checkOutDate);
+    
+    if (checkOut <= checkIn) {
+      setError("Ngày trả phòng phải sau ngày nhận phòng");
+      return false;
+    }
+    
+    return true;
+  };
 
   const generateDocNumber = () => {
     return "DOC-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
@@ -75,23 +131,29 @@ const BookingPage = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    setError(""); // Clear error khi user thay đổi input
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!validateForm()) {
+      setSubmitting(false);
+      return;
+    }
+    
     setSubmitting(true);
     setError("");
     setSuccess("");
-
+  
     try {
       // Lưu thông tin vào localStorage
       localStorage.setItem("fullName", form.guestName);
       localStorage.setItem("email", form.email);
       localStorage.setItem("phone", form.phone);
-
-      // Token đã được apiConfig tự động thêm vào header
-
-      // Tạo cấu trúc request đúng với backend
+  
+      // Tạo cấu trúc request
       const body = {
         hotelId: 1,
         roomTypeId: room.id,
@@ -106,50 +168,71 @@ const BookingPage = () => {
           documentType: form.documentType || "PASSPORT",
           documentNumber: form.documentNumber || generateDocNumber()
         },
-        rooms: []
+        rooms: roomAllocations.map(alloc => ({
+          adultCount: alloc.adultCount,
+          childCount: alloc.childCount
+        }))
       };
-
-      // Tạo rooms array dựa trên requiredRooms
-      for (let i = 0; i < requiredRooms; i++) {
-        body.rooms.push({
-          adultCount: parseInt(form.adultCount),
-          childCount: parseInt(form.childCount)
-        });
-      }
-
+  
       console.log("Request body:", JSON.stringify(body, null, 2));
-
-      // Gọi API qua Gateway - apiConfig tự động thêm base URL
-      const res = await api.post("/bookings", body);
+      console.log(`Cần ${roomAllocations.length} phòng cho ${form.adultCount} người lớn và ${form.childCount} trẻ em`);
+  
+      // Gọi API
+      const response = await api.post("/bookings", body);
       
-      console.log("Full response:", res.data);
-
-      const reservationId = res.data?.reservationId;
-      const reservationCode = res.data?.reservationCode;
-
-      if (!reservationId) {
-        throw new Error("Không lấy được reservationId từ server.");
+      // Debug: Log toàn bộ response
+      console.log("Raw response:", response);
+      
+      // Lấy data an toàn
+      const responseData = response?.data || response;
+      console.log("Response data:", responseData);
+  
+      // Kiểm tra response có phải là object không
+      if (typeof responseData !== 'object' || responseData === null) {
+        console.error("Invalid response format:", responseData);
+        throw new Error("Server trả về dữ liệu không hợp lệ");
       }
-
+  
+      const reservationId = responseData?.reservationId;
+      const reservationCode = responseData?.reservationCode;
+  
+      console.log("Extracted - reservationId:", reservationId, "reservationCode:", reservationCode);
+  
+      if (!reservationId) {
+        // Log chi tiết để debug
+        console.error("Missing reservationId. Available fields:", Object.keys(responseData));
+        console.error("Full response data:", JSON.stringify(responseData, null, 2));
+        throw new Error("Không lấy được reservationId từ server. Server trả về: " + JSON.stringify(responseData));
+      }
+  
       // Tính số đêm và tiền cọc
       const checkIn = new Date(form.checkInDate);
       const checkOut = new Date(form.checkOutDate);
       const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
       
       const deposit = room.basePrice * nights * 23000 * 0.2;
-
+  
       setSuccess(
         <div>
-          <p className="fw-bold text-success">{res.data.message}</p>
+          <p className="fw-bold text-success">{responseData.message || "Đặt phòng thành công!"}</p>
           <p>Mã đặt phòng: <strong>{reservationCode}</strong></p>
           <p>
-            {res.data.isLoggedIn 
-              ? `Khách hàng: ${res.data.customerName || form.guestName}` 
+            {responseData.isLoggedIn 
+              ? `Khách hàng: ${responseData.customerName || form.guestName}` 
               : "Khách vãng lai"}
           </p>
           <p>
-            Số phòng: <strong>{res.data.requiredRooms}</strong> 
-            (Người lớn: {res.data.totalAdults}, Trẻ em: {res.data.totalChildren})
+            Số phòng: <strong>{responseData.requiredRooms || roomAllocations.length}</strong> 
+            (Người lớn: {responseData.totalAdults || form.adultCount}, 
+             Trẻ em: {responseData.totalChildren || form.childCount})
+          </p>
+          <p>
+            <strong>Phân bổ phòng:</strong><br/>
+            {roomAllocations.map((alloc, idx) => (
+              <span key={idx}>
+                Phòng {idx + 1}: {alloc.adultCount} người lớn, {alloc.childCount} trẻ em<br/>
+              </span>
+            ))}
           </p>
           <p>
             Tiền cọc (20%): <strong>{deposit.toLocaleString()} VNĐ</strong>
@@ -157,27 +240,40 @@ const BookingPage = () => {
           <p>Đang chuyển sang VNPay...</p>
         </div>
       );
-
+  
       await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Gọi VNPay qua Gateway
+  
+      // Gọi VNPay
       const paymentResp = await api.post("/payment/create-vnpay", {
         reservationId,
       });
       
-      const vnpUrl = paymentResp?.data?.vnpayUrl;
-
+      const vnpUrl = paymentResp?.data?.vnpayUrl || paymentResp?.vnpayUrl;
+  
       if (!vnpUrl) {
         throw new Error("Không tạo được VNPay URL.");
       }
-
+  
       window.location.assign(vnpUrl);
-
+  
     } catch (err) {
       console.error("Booking error:", err);
       
-      // Xử lý lỗi từ API Gateway
-      const errorMessage = err.response?.data?.message || err.message || "Lỗi không xác định";
+      // Xử lý lỗi chi tiết
+      let errorMessage = "Lỗi không xác định";
+      
+      if (err.response) {
+        // Lỗi từ server có response
+        console.error("Error response:", err.response);
+        errorMessage = err.response.data?.message || err.response.data || err.message;
+      } else if (err.request) {
+        // Lỗi không nhận được response
+        errorMessage = "Không thể kết nối đến server";
+      } else {
+        // Lỗi khác
+        errorMessage = err.message;
+      }
+      
       setError("Đặt phòng thất bại: " + errorMessage);
     } finally {
       setSubmitting(false);
@@ -207,16 +303,23 @@ const BookingPage = () => {
           <h3 className="fw-bold">{room.name}</h3>
           <p style={{ color: "#666" }}>{room.description}</p>
           <p><strong>Giá:</strong> {(room.basePrice * 23000).toLocaleString()} VNĐ/đêm</p>
-          <p><strong>Sức chứa:</strong> {room.capacity} người lớn</p>
+          <p><strong>Sức chứa:</strong> {room.capacity} người lớn (trẻ em tính 0.5)</p>
           <p><strong>Giường:</strong> {room.bedInfo}</p>
 
-          {requiredRooms > 1 && (
-            <Alert variant="warning">
-              <Alert.Heading>Cần {requiredRooms} phòng</Alert.Heading>
+          {roomAllocations.length > 1 && (
+            <Alert variant="info">
+              <Alert.Heading>Cần {roomAllocations.length} phòng</Alert.Heading>
               <p>
                 Với {form.adultCount} người lớn và {form.childCount} trẻ em,
-                bạn cần đặt {requiredRooms} phòng.
+                hệ thống sẽ phân bổ như sau:
               </p>
+              <ul>
+                {roomAllocations.map((alloc, idx) => (
+                  <li key={idx}>
+                    Phòng {idx + 1}: {alloc.adultCount} người lớn, {alloc.childCount} trẻ em
+                  </li>
+                ))}
+              </ul>
             </Alert>
           )}
         </Col>
@@ -344,11 +447,14 @@ const BookingPage = () => {
                     <Form.Control 
                       type="number" 
                       min="1" 
-                      max="10"
+                      max="20"
                       name="adultCount" 
                       value={form.adultCount} 
                       onChange={handleChange} 
                     />
+                    <Form.Text className="text-muted">
+                      Tối thiểu 1 người lớn
+                    </Form.Text>
                   </Form.Group>
                 </Col>
                 <Col>
@@ -357,11 +463,14 @@ const BookingPage = () => {
                     <Form.Control 
                       type="number" 
                       min="0" 
-                      max="10"
+                      max="20"
                       name="childCount" 
                       value={form.childCount} 
                       onChange={handleChange} 
                     />
+                    <Form.Text className="text-muted">
+                      Mỗi trẻ em tính 0.5
+                    </Form.Text>
                   </Form.Group>
                 </Col>
               </Row>
@@ -404,7 +513,7 @@ const BookingPage = () => {
                     Đang xử lý...
                   </>
                 ) : (
-                  "Hoàn tất đặt phòng"
+                  `Đặt ${roomAllocations.length} phòng`
                 )}
               </Button>
             </Form>
