@@ -23,7 +23,10 @@ import HotelAmenityManagement from "../manager/HotelAmenityManagement";
 import PaymentResult from "../publicPage/PaymentResult";
 import BookingPage from "../publicPage/BookingPage";
 import CheckInforBooking from "../staffPage/CheckInforBooking";
-
+import HouseKeepingDashboard from "../housekeepingPage/HouseKeepingDashboard";
+import HousekeepingManagement from "../admin/HousekeepingManagement";
+import VoucherManagement from "../admin/VoucherManagement";
+import ManagerDashboard from '../manager/ManagerDashboard';
 function Routers() {
   return (
     <HashRouter>
@@ -46,7 +49,7 @@ function Routers() {
 
         {/* ROUTE DÀNH CHO MANAGER */}
         <Route path="/manager" element={<Manager />}>
-          <Route index element={<DashBoard />} />
+          <Route path="dashboard" element={<ManagerDashboard />} />
           <Route path="dashboard" element={<DashBoard />} />
           <Route path="room-types" element={<RoomTypeManagement />} />
           <Route path="service-management" element={<ServiceManagement />} />
@@ -61,6 +64,9 @@ function Routers() {
           <Route path="dashboard" element={<DashBoard />} />
           <Route path="user-management" element={<UserManagement />} />
           <Route path="customer-management" element={<CustomerManagement />} />
+          <Route path="room-management" element={<RoomManagement />} />
+          <Route path="voucher-management" element={<VoucherManagement />} />
+          <Route path="housekeeping-management" element={<HousekeepingManagement />} />
         </Route>
 
         {/* ROUTE DÀNH CHO RECEPTIONIST */}
@@ -71,6 +77,9 @@ function Routers() {
           <Route path="check-out" element={<CheckOutPage />} />
           <Route path="check-room" element={<CheckRoom />} />
         </Route>
+
+        {/* ROUTE DÀNH CHO HOUSEKEEPING STAFF */}
+        <Route path="/housekeeping" element={<HouseKeepingDashboard />} />
         
         {/* Route 404 để debug */}
         <Route path="*" element={<h1>404 - Page Not Found</h1>} />

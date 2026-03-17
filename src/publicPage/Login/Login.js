@@ -6,7 +6,6 @@ import ForgotPassword from "./ForgotPassword";
 import './Login.css'; 
 
 export default function Login() {
-    // Khởi tạo trạng thái mới, có thể là "signIn", "signUp", hoặc "forgotPassword"
     const [type, setType] = useState("signIn");
     const navigate = useNavigate();
 
@@ -17,15 +16,16 @@ export default function Login() {
     const handleLoginSuccess = (role) => {
         const userRole = role.toUpperCase();
 
-        // *** ĐÃ SỬA: Logic phân biệt và điều hướng theo Role ***
         if (userRole === 'ADMIN') {
             navigate('/admin/dashboard');
         } else if (userRole === 'MANAGER') {
             navigate('/manager/dashboard');
-        } else if (userRole === 'RECEPTION') {
+        } else if (userRole === 'RECEPTIONIST') {
             navigate('/reception/check-in');
+        } else if (userRole === 'HOUSEKEEPING') {
+            navigate('/housekeeping');
         } else {
-            // Dành cho CUSTOMER hoặc các role không xác định khác
+        
             navigate('/home'); 
         }
     };

@@ -5,7 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import api from "../api/apiConfig"; 
 
 const DEFAULT_HOTEL_ID = 1; 
-const ALLOWED_ROLES = ['MANAGER']; 
+const ALLOWED_ROLES = ['MANAGER' , 'ADMIN']; 
 
 const ROOM_STATUSES = {
     AVAILABLE: { label: "Sẵn sàng", variant: "success" },

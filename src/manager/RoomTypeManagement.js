@@ -5,7 +5,6 @@ import 'react-toastify/dist/ReactToastify.css';
 import api from "../api/apiConfig"; 
 
 const DEFAULT_HOTEL_ID = 1; 
-// Khai báo hằng số cho quyền truy cập, chỉ cho phép 'MANAGER'
 const ALLOWED_ROLES = ['MANAGER']; 
 
 const RoomTypeManagement = () => {
@@ -25,29 +24,23 @@ const RoomTypeManagement = () => {
         capacity: "",
         bedInfo: "",
         description: "",
-        image: "", // ĐÃ ĐỔI TỪ imageUrl SANG image
+        imageUrl: "", // Đổi lại thành imageUrl để khớp 100% với DTO
         code: "" 
     });
 
-    // ⭐ AMENITY STATES ⭐
-    const [allAmenities, setAllAmenities] = useState([]); // Danh sách tất cả amenities
-    const [showAmenityModal, setShowAmenityModal] = useState(false); // Trạng thái modal tiện nghi
-    const [currentRoomTypeForAmenity, setCurrentRoomTypeForAmenity] = useState(null); // RoomType đang được chỉnh sửa amenities
-    const [selectedAmenityIds, setSelectedAmenityIds] = useState([]); // Các ID amenities đang được chọn
-
-    // --- UTILS ---
+    const [allAmenities, setAllAmenities] = useState([]); 
+    const [showAmenityModal, setShowAmenityModal] = useState(false); 
+    const [currentRoomTypeForAmenity, setCurrentRoomTypeForAmenity] = useState(null); 
+    const [selectedAmenityIds, setSelectedAmenityIds] = useState([]); 
 
     const formatPrice = (price) => {
         if (price === null || price === undefined) return '';
         const numberPrice = parseFloat(price);
         if (isNaN(numberPrice)) return price;
-        // Sử dụng style tiền tệ 'currency' và đơn vị 'VND'
         return numberPrice.toLocaleString("vi-VN", { style: 'currency', currency: 'VND' });
     };
 
     const canManageRoomTypes = ALLOWED_ROLES.includes(currentUserRole);
-
-    // --- FETCHING LOGIC ---
 
     const fetchRoomTypes = async () => {
         if (error && error.includes('không có quyền truy cập')) return;
@@ -72,7 +65,6 @@ const RoomTypeManagement = () => {
             setAllAmenities(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error("Lỗi khi tải danh sách tiện nghi:", err);
-            // toast.error("Không thể tải danh sách tiện nghi."); // Tránh spam toast
         }
     };
 
@@ -86,8 +78,6 @@ const RoomTypeManagement = () => {
         fetchAllAmenities(); 
     }, [currentUserRole]); 
 
-    // --- CRUD MODAL LOGIC (CREATE/UPDATE) ---
-
     const openModal = (room = null) => {
         if (!canManageRoomTypes) {
             toast.error("Bạn không có quyền thực hiện thao tác này.");
@@ -96,19 +86,17 @@ const RoomTypeManagement = () => {
         
         if (room) {
             setIsEditing(true);
-            // Lấy trường image từ data response của BE
             setCurrentRoom({
                 ...room,
                 basePrice: room.basePrice?.toString() || "",
                 capacity: room.capacity?.toString() || "",
-                image: room.image || "" // MAPPING: Lấy trường image
+                imageUrl: room.imageUrl || "" // Lấy đúng trường imageUrl từ BE
             });
         } else {
             setIsEditing(false);
-            // Tạo mới, reset trường image
             setCurrentRoom({
                 id: null, name: "", basePrice: "", capacity: "",
-                bedInfo: "", description: "", image: "", code: "" // Updated: dùng image
+                bedInfo: "", description: "", imageUrl: "", code: "" 
             });
         }
         setError(null);
@@ -141,20 +129,24 @@ const RoomTypeManagement = () => {
         }
 
         try {
+            // Gói dữ liệu khớp 100% với DTO bao gồm cả hotelId trong Body
             const dataToSend = {
-                ...currentRoom,
+                name: currentRoom.name,
+                code: currentRoom.code,
                 basePrice: parseFloat(currentRoom.basePrice),
                 capacity: parseInt(currentRoom.capacity),
-                image: currentRoom.image, // GỬI TRƯỜNG IMAGE ĐÃ CẬP NHẬT
+                bedInfo: currentRoom.bedInfo,
+                description: currentRoom.description, // Backend cần có biến này trong DTO
+                imageUrl: currentRoom.imageUrl,       // Sửa lại thành imageUrl
+                hotelId: DEFAULT_HOTEL_ID             // Gửi luôn hotelId ở đây
             };
-            
-            if (!isEditing) delete dataToSend.id; 
 
             if (isEditing) {
-                await api.put(`/room-type/${dataToSend.id}`, dataToSend);
+                await api.put(`/room-type/${currentRoom.id}`, dataToSend);
                 toast.success("✅ Cập nhật thành công!");
             } else {
-                await api.post("/room-type", dataToSend, { params: { hotelId: DEFAULT_HOTEL_ID } }); // Gửi hotelId qua param
+                // Không dùng params nữa vì đã có trong dataToSend
+                await api.post("/room-type", dataToSend); 
                 toast.success("➕ Thêm mới thành công!");
             }
             closeModal();
@@ -191,7 +183,6 @@ const RoomTypeManagement = () => {
     };
 
     // --- AMENITY MODAL LOGIC ---
-    
     const openAmenityModal = (roomType) => {
         if (!canManageRoomTypes) {
             toast.error("Bạn không có quyền thực hiện thao tác này.");
@@ -228,7 +219,6 @@ const RoomTypeManagement = () => {
             const roomTypeId = currentRoomTypeForAmenity.id;
             const data = { amenityIds: selectedAmenityIds };
             
-            // Gọi API PUT
             await api.put(`/room-type/${roomTypeId}/amenities`, data); 
 
             toast.success(`✅ Cập nhật tiện nghi cho ${currentRoomTypeForAmenity.name} thành công!`);
@@ -247,13 +237,11 @@ const RoomTypeManagement = () => {
     };
 
     // --- RENDER ---
-
     if (error && error.includes('không có quyền truy cập')) {
         return <p className="text-danger text-center mt-5 p-4 bg-light rounded shadow-sm" style={{ fontSize: '1.2em', fontWeight: 'bold' }}>
             Lỗi: {error}
         </p>;
     }
-
 
     if (loading) {
         return (
@@ -285,8 +273,6 @@ const RoomTypeManagement = () => {
                 </Button>
             )}
 
-
-            {/* Bảng dữ liệu */}
             <div className="shadow-2xl rounded-xl table-responsive bg-white p-3 border border-gray-200">
                 <Table striped bordered hover className="m-0 align-middle caption-top" style={{ minWidth: '1200px' }}> 
                     <caption className="text-primary fw-bold mb-2">
@@ -301,7 +287,7 @@ const RoomTypeManagement = () => {
                             <th className="text-nowrap" style={{ width: '8%' }}>Mã phòng</th>
                             <th className="text-nowrap" style={{ width: '10%' }}>Giường</th>
                             <th>Mô tả</th>
-                            <th className="text-center text-nowrap" style={{ width: '8%' }}>Ảnh</th> {/* CỘT IMAGE */}
+                            <th className="text-center text-nowrap" style={{ width: '8%' }}>Ảnh</th>
                             <th className="text-center text-nowrap" style={{ width: '10%' }}>Tiện nghi</th>
                             <th className="text-center text-nowrap" style={{ width: '14%' }}>Hành động</th>
                         </tr>
@@ -323,7 +309,7 @@ const RoomTypeManagement = () => {
                                     </td>
                                     <td className="text-center">
                                         <img
-                                            src={room.image || "https://via.placeholder.com/80x60?text=No+Image"} // SỬ DỤNG room.image
+                                            src={room.imageUrl || "https://via.placeholder.com/80x60?text=No+Image"} 
                                             alt={room.name}
                                             width="80"
                                             height="60"
@@ -333,7 +319,7 @@ const RoomTypeManagement = () => {
                                     <td className="text-center">
                                         {canManageRoomTypes ? (
                                             <Button 
-                                                variant="secondary" // Thay info bằng secondary hoặc màu khác phù hợp hơn
+                                                variant="secondary" 
                                                 size="sm"
                                                 onClick={() => openAmenityModal(room)}
                                                 className="shadow-sm"
@@ -350,7 +336,7 @@ const RoomTypeManagement = () => {
                                                     <Button
                                                         variant="warning"
                                                         size="sm"
-                                                        className="me-2 text-dark shadow-sm" // Dùng text-dark để chữ vàng rõ hơn
+                                                        className="me-2 text-dark shadow-sm"
                                                         onClick={() => openModal(room)}
                                                     >✏️ Sửa</Button>
                                                     <Button
@@ -377,7 +363,6 @@ const RoomTypeManagement = () => {
                 </Table>
             </div>
 
-            {/* Modal CRUD RoomType */}
             {canManageRoomTypes && (
                 <Modal show={showModal} onHide={closeModal} centered>
                     <Modal.Header closeButton className={isEditing ? "bg-warning text-dark" : "bg-primary text-white"}>
@@ -391,9 +376,9 @@ const RoomTypeManagement = () => {
                                 <Form.Label className="fw-bold">Tên phòng <span className="text-danger">*</span></Form.Label>
                                 <Form.Control
                                     type="text"
-                                    name="name" // Thêm name
+                                    name="name"
                                     value={currentRoom.name}
-                                    onChange={handleInputChange} // Cập nhật cách gọi
+                                    onChange={handleInputChange}
                                     required
                                 />
                             </Form.Group>
@@ -402,9 +387,9 @@ const RoomTypeManagement = () => {
                                 <Form.Label className="fw-bold">Mã loại phòng (Code) <span className="text-danger">*</span></Form.Label>
                                 <Form.Control
                                     type="text"
-                                    name="code" // Thêm name
+                                    name="code"
                                     value={currentRoom.code}
-                                    onChange={handleInputChange} // Cập nhật cách gọi
+                                    onChange={handleInputChange}
                                     required
                                 />
                             </Form.Group>
@@ -413,9 +398,9 @@ const RoomTypeManagement = () => {
                                 <Form.Label className="fw-bold">Giá cơ bản (VND) <span className="text-danger">*</span></Form.Label>
                                 <Form.Control
                                     type="number"
-                                    name="basePrice" // Thêm name
+                                    name="basePrice"
                                     value={currentRoom.basePrice}
-                                    onChange={handleInputChange} // Cập nhật cách gọi
+                                    onChange={handleInputChange}
                                     required
                                     min="0"
                                 />
@@ -425,9 +410,9 @@ const RoomTypeManagement = () => {
                                 <Form.Label className="fw-bold">Sức chứa (Người) <span className="text-danger">*</span></Form.Label>
                                 <Form.Control
                                     type="number"
-                                    name="capacity" // Thêm name
+                                    name="capacity"
                                     value={currentRoom.capacity}
-                                    onChange={handleInputChange} // Cập nhật cách gọi
+                                    onChange={handleInputChange}
                                     min="1"
                                     required
                                 />
@@ -437,9 +422,9 @@ const RoomTypeManagement = () => {
                                 <Form.Label className="fw-bold">Thông tin giường</Form.Label>
                                 <Form.Control
                                     type="text"
-                                    name="bedInfo" // Thêm name
+                                    name="bedInfo"
                                     value={currentRoom.bedInfo}
-                                    onChange={handleInputChange} // Cập nhật cách gọi
+                                    onChange={handleInputChange}
                                     placeholder="Ví dụ: 1 King Bed"
                                 />
                             </Form.Group>
@@ -449,28 +434,26 @@ const RoomTypeManagement = () => {
                                 <Form.Control
                                     as="textarea"
                                     rows={3}
-                                    name="description" // Thêm name
+                                    name="description"
                                     value={currentRoom.description}
-                                    onChange={handleInputChange} // Cập nhật cách gọi
+                                    onChange={handleInputChange}
                                 />
                             </Form.Group>
 
-                            {/* TRƯỜNG NHẬP URL ẢNH */}
                             <Form.Group className="mb-3">
-                                <Form.Label className="fw-bold">Ảnh (URL) - **ĐÃ CẬP NHẬT**</Form.Label>
+                                <Form.Label className="fw-bold">Ảnh (URL) hoặc Chuỗi Base64</Form.Label>
                                 <Form.Control
                                     type="text"
-                                    name="image" // SỬ DỤNG TRƯỜNG 'image' MỚI
-                                    value={currentRoom.image}
-                                    onChange={handleInputChange} // SỬ DỤNG TRƯỜNG 'image' MỚI
-                                    placeholder="Nhập URL ảnh loại phòng"
+                                    name="imageUrl" // Dùng name là imageUrl
+                                    value={currentRoom.imageUrl}
+                                    onChange={handleInputChange}
+                                    placeholder="Nhập URL ảnh hoặc chuỗi Base64"
                                 />
-                                {/* Hiển thị ảnh xem trước */}
-                                {currentRoom.image && (
+                                {currentRoom.imageUrl && (
                                     <div className="mt-3 text-center p-2 border rounded" style={{ backgroundColor: '#f9f9f9' }}>
                                         <p className="text-muted small mb-1 fw-bold">Ảnh xem trước:</p>
                                         <img 
-                                            src={currentRoom.image} 
+                                            src={currentRoom.imageUrl} 
                                             alt="Room Type Preview" 
                                             style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '4px' }}
                                         />
@@ -490,7 +473,6 @@ const RoomTypeManagement = () => {
                 </Modal>
             )}
 
-            {/* Modal Quản lý Tiện nghi */}
             {canManageRoomTypes && currentRoomTypeForAmenity && (
                 <Modal show={showAmenityModal} onHide={closeAmenityModal} centered>
                     <Modal.Header closeButton className="bg-secondary text-white">

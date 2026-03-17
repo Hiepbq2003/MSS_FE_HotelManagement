@@ -1,7 +1,8 @@
 import React from 'react';
 import { Nav } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FaTachometerAlt, FaHotel, FaUsers, FaBed, FaSignOutAlt } from 'react-icons/fa';
+
+import { FaTachometerAlt, FaHotel, FaUsers, FaBed, FaSignOutAlt, FaBroom ,FaTicketAlt} from 'react-icons/fa';
 
 const Sidebar = ({ role }) => { 
     const userRole = role ? role.toUpperCase() : '';
@@ -19,7 +20,6 @@ const Sidebar = ({ role }) => {
 
     if (!isManagerOrAdmin) return null;
 
-    // ✅ Standard Logout Function
     const handleLogout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -34,13 +34,15 @@ const Sidebar = ({ role }) => {
 
             <Nav className="flex-column p-2">
 
-                <Nav.Link
-                    as={Link}
-                    to={`${basePath}/dashboard`}
-                    className={`text-white ${location.pathname === `${basePath}/dashboard` ? 'bg-primary rounded' : ''}`}
-                >
-                    <FaTachometerAlt className="me-2" /> Dashboard
-                </Nav.Link>
+               {isManagerOrAdmin && (
+                    <Nav.Link
+                        as={Link}
+                        to={`${basePath}/dashboard`}
+                        className={`text-white ${location.pathname === `${basePath}/dashboard` ? 'bg-primary rounded' : ''}`}
+                    >
+                        <FaTachometerAlt className="me-2" /> Dashboard
+                    </Nav.Link>
+                )}
 
                 {canSeeManagerLinks && (
                     <Nav.Link
@@ -54,7 +56,7 @@ const Sidebar = ({ role }) => {
 
                 <hr className="bg-secondary my-2" />
 
-                {canSeeManagerLinks && (
+                {isManagerOrAdmin && (
                     <Nav.Link
                         as={Link}
                         to={`${basePath}/room-management`}
@@ -91,6 +93,26 @@ const Sidebar = ({ role }) => {
                         className={`text-white ${location.pathname === `${basePath}/room-types` ? 'bg-primary rounded' : ''}`}
                     >
                         <FaBed className="me-2" /> Room Types
+                    </Nav.Link>
+                )}
+
+                {canManageUsers && (
+                    <Nav.Link
+                        as={Link}
+                        to={`${basePath}/voucher-management`}
+                        className={`text-white ${location.pathname === `${basePath}/voucher-management` ? 'bg-primary rounded' : ''}`}
+                    >
+                        <FaTicketAlt className="me-2" /> Voucher Management
+                    </Nav.Link>
+                )}
+
+                {canManageUsers && (
+                    <Nav.Link
+                        as={Link}
+                        to={`${basePath}/housekeeping-management`}
+                        className={`text-white ${location.pathname === `${basePath}/housekeeping-management` ? 'bg-primary rounded' : ''}`}
+                    >
+                        <FaBroom className="me-2" /> Housekeeping Management
                     </Nav.Link>
                 )}
 

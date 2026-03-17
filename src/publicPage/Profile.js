@@ -1,244 +1,184 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Card, Row, Col, Badge, Modal, Form, Button } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
-import api from '../api/apiConfig'; // Giả định đường dẫn này là đúng
-import { FaUserCircle, FaEnvelope, FaIdBadge, FaUser, FaPhoneAlt, FaLock, FaEdit } from 'react-icons/fa'; 
-import Breadcrumbs from '../components/Breadcrumbs'; 
+import { Container, Card, Row, Col, Badge, Modal, Form, Button, Spinner } from 'react-bootstrap';
+import { useNavigate, Link } from 'react-router-dom';
+import { 
+    FaUserCircle, FaEnvelope, FaIdBadge, FaUser, 
+    FaPhoneAlt, FaLock, FaEdit, FaShieldAlt, FaCamera 
+} from 'react-icons/fa';
+import api from '../api/apiConfig';
+import { toast, ToastContainer } from 'react-toastify'; // Khuyên dùng thay cho alert
+import 'react-toastify/dist/ReactToastify.css';
 
 const Profile = () => {
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
     const [userInfo, setUserInfo] = useState({
-        fullName: 'Loading...',
-        email: 'Loading...',
-        phone: 'Loading...', 
+        fullName: '...',
+        email: '...',
+        phone: '...',
         role: 'GUEST',
-        isLoggedIn: false
     });
-    
-    // State quản lý Modal
-    const [showProfileModal, setShowProfileModal] = useState(false); // Modal cho Tên và SĐT
-    const [showPasswordModal, setShowPasswordModal] = useState(false); // Modal cho Mật khẩu
-    
-    // State cho form chỉnh sửa Profile (Name, Phone)
+
+    // Modal & Form States
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [editProfileForm, setEditProfileForm] = useState({ fullName: '', phone: '' });
-    // State cho form đổi Mật khẩu
     const [newPassword, setNewPassword] = useState({ current: '', new: '', confirm: '' });
 
-    // --- Data Fetching ---
     useEffect(() => {
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('userRole');
-        
-        // Lấy thông tin từ localStorage
-        const storedFullName = localStorage.getItem('fullName') || 'Guest User';
-        const storedEmail = localStorage.getItem('email') || 'N/A';
-        const storedPhone = localStorage.getItem('phone') || 'Chưa cập nhật'; 
-        
-        setUserInfo({
-            fullName: storedFullName,
-            email: storedEmail,
-            phone: storedPhone,
-            role: role || 'CUSTOMER',
-            isLoggedIn: !!token
-        });
-
-        // Bắt buộc đăng nhập
         if (!token) {
-            navigate('/login'); 
+            navigate('/login');
+            return;
         }
+
+        setUserInfo({
+            fullName: localStorage.getItem('fullName') || 'Guest User',
+            email: localStorage.getItem('email') || 'N/A',
+            phone: localStorage.getItem('phone') || 'Chưa cập nhật',
+            role: localStorage.getItem('userRole') || 'CUSTOMER',
+        });
     }, [navigate]);
 
-    // Hàm định dạng vai trò
-    const formatRole = (role) => {
-        if (!role) return 'Customer';
-        return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
-    };
-    
-    // --- HANDLERS ---
-
-    // Mở Modal chỉnh sửa Profile và gán giá trị hiện tại
-    const handleShowProfileModal = () => {
-        setEditProfileForm({ 
-            fullName: userInfo.fullName, 
-            phone: userInfo.phone === 'Chưa cập nhật' ? '' : userInfo.phone 
-        });
-        setShowProfileModal(true);
-    };
-    
-    // ⭐ ĐÃ SỬA LỖI READING 'phone'
-    const handleProfileUpdate = async (e) => { 
+    const handleProfileUpdate = async (e) => {
         e.preventDefault();
-        
-        const { fullName, phone } = editProfileForm;
-        const email = userInfo.email;
-        
-        if (!fullName.trim()) {
-            alert("Tên không được để trống.");
-            return;
-        }
-
-        const trimmedPhone = phone.trim();
-        const phoneRegex = /^\d{10,15}$/;
-        if (trimmedPhone && !phoneRegex.test(trimmedPhone)) {
-             alert("Số điện thoại không hợp lệ (phải là 10-15 chữ số).");
-             return;
-        }
-        
+        setLoading(true);
         try {
-            const requestBody = { 
-                email: email,             
-                fullName: fullName.trim(),
-                phone: trimmedPhone 
+            const requestBody = {
+                email: userInfo.email,
+                fullName: editProfileForm.fullName.trim(),
+                phone: editProfileForm.phone.trim()
             };
+            await api.put('/auth/user/profile', requestBody);
 
-            const response = await api.put('/auth/user/profile', requestBody); 
+            localStorage.setItem('fullName', requestBody.fullName);
+            localStorage.setItem('phone', requestBody.phone);
             
-            // ⭐ LOGIC FIX LỖI: Kiểm tra response.data có tồn tại không.
-            // Nếu có, dùng dữ liệu trả về từ server. Nếu không (lỗi backend không trả body), 
-            // dùng dữ liệu đã gửi đi (requestBody).
-            const updatedProfileData = response.data && response.data.email ? response.data : requestBody;
-            
-            const newPhone = updatedProfileData.phone || ''; 
-            const newFullName = updatedProfileData.fullName || '';
-
-            // Cập nhật localStorage chỉ khi API call thành công
-            localStorage.setItem('fullName', newFullName);
-            localStorage.setItem('phone', newPhone);
-            
-            setUserInfo(prev => ({ 
-                ...prev, 
-                fullName: newFullName,
-                phone: newPhone || 'Chưa cập nhật'
-            }));
-            
+            setUserInfo(prev => ({ ...prev, ...requestBody }));
             setShowProfileModal(false);
-            alert("Cập nhật thông tin thành công!");
+            toast.success("Cập nhật thông tin thành công!");
         } catch (error) {
-             // Xử lý lỗi API chi tiết hơn
-             const apiError = error.response?.data?.message || error.message; 
-             const errorMessage = apiError || "Đã xảy ra lỗi khi cập nhật profile.";
-             alert(`Lỗi cập nhật profile: ${errorMessage}`);
+            toast.error(error.response?.data?.message || "Lỗi cập nhật hồ sơ");
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Xử lý Đổi Mật khẩu (API Call)
-    const handlePasswordChange = async (e) => { 
+    const handlePasswordChange = async (e) => {
         e.preventDefault();
-        const { current, new: newPass, confirm } = newPassword;
-        const email = userInfo.email; 
-
-        if (newPass !== confirm) {
-            alert("Mật khẩu mới và xác nhận mật khẩu không khớp.");
-            return;
-        }
-        if (newPass.length < 6) {
-            alert("Mật khẩu mới phải có ít nhất 6 ký tự.");
-            return;
-        }
-        if (newPass === current) {
-            alert("Mật khẩu mới phải khác mật khẩu hiện tại.");
-            return;
-        }
+        if (newPassword.new !== newPassword.confirm) return toast.error("Mật khẩu không khớp!");
         
+        setLoading(true);
         try {
-            await api.post('/auth/change-password', { 
-                email: email, 
-                currentPassword: current, 
-                newPassword: newPass 
+            await api.post('/auth/change-password', {
+                email: userInfo.email,
+                currentPassword: newPassword.current,
+                newPassword: newPassword.new
             });
-
             setShowPasswordModal(false);
-            alert("Đổi mật khẩu thành công! Vui lòng đăng nhập lại.");
-            
-            localStorage.removeItem('token');
-            localStorage.removeItem('userRole'); 
-            
-            navigate('/login'); 
-
+            toast.info("Đổi mật khẩu thành công! Đang đăng xuất...");
+            setTimeout(() => {
+                localStorage.clear();
+                navigate('/login');
+            }, 2000);
         } catch (error) {
-            const apiError = error.response?.data?.message || error.message; 
-            const errorMessage = apiError || "Đã xảy ra lỗi khi đổi mật khẩu.";
-            alert(`Lỗi: ${errorMessage}`);
+            toast.error(error.response?.data?.message || "Mật khẩu hiện tại không đúng");
+        } finally {
+            setLoading(false);
         }
-        
-        setNewPassword({ current: '', new: '', confirm: '' });
     };
 
-    // --- RENDER ---
-    
     return (
-        <>
-            <Breadcrumbs title="User Profile" page="Profile" />
-            <Container style={{ paddingTop: '50px', paddingBottom: '100px' }}>
+        <div style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
+            <ToastContainer position="top-right" autoClose={3000} />
+            
+            {/* --- Custom Breadcrumb Area --- */}
+            <div className="py-3 border-bottom bg-white shadow-sm mb-4">
+                <Container>
+                    <div className="d-flex align-items-center small fw-bold">
+                        <Link to="/" className="text-decoration-none text-primary d-flex align-items-center">
+                            🏠 <span className="ms-1">Home</span>
+                        </Link>
+                        <span className="mx-2 text-muted">{'>'}</span>
+                        <span className="text-success text-uppercase" style={{ letterSpacing: '1px' }}>Profile</span>
+                    </div>
+                </Container>
+            </div>
+
+            <Container className="pb-5">
                 <Row className="justify-content-center">
-                    <Col lg={8} md={10}>
-                        <Card className="shadow-sm">
-                            <Card.Header 
-                                className="text-center text-white" 
-                                style={{ 
-                                    backgroundColor: 'var(--main-color)', // Giả định CSS Variable
-                                    padding: '20px', 
-                                    fontSize: '1.5rem', 
-                                    fontWeight: '600'
-                                }}
-                            >
-                                <FaUserCircle style={{ marginRight: '10px' }} />
-                                Thông tin tài khoản
-                            </Card.Header>
-                            <Card.Body>
-                                {/* Họ và Tên */}
-                                <Row className="py-3 border-bottom align-items-center">
-                                    <Col xs={4} className="text-muted fw-bold">
-                                        <FaIdBadge style={{ marginRight: '10px', color: '#FFBF58' }} />
-                                        Họ và Tên:
+                    {/* Left Column: Avatar & Summary */}
+                    <Col lg={4} className="mb-4">
+                        <Card className="border-0 shadow-sm text-center p-4 rounded-4 h-100">
+                            <div className="position-relative mx-auto mb-3" style={{ width: '120px' }}>
+                                <div className="rounded-circle overflow-hidden border border-4 border-white shadow-sm bg-light d-flex align-items-center justify-content-center" style={{ width: '120px', height: '120px' }}>
+                                    <FaUserCircle size={100} color="#dee2e6" />
+                                </div>
+                                <button className="btn btn-warning btn-sm position-absolute bottom-0 end-0 rounded-circle shadow">
+                                    <FaCamera size={12} />
+                                </button>
+                            </div>
+                            <h4 className="fw-bold mb-1">{userInfo.fullName}</h4>
+                            <p className="text-muted small mb-3">{userInfo.email}</p>
+                            <Badge bg="soft-success" className="rounded-pill px-3 py-2 mb-3" 
+                                style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', fontSize: '0.8rem' }}>
+                                <FaShieldAlt className="me-1" /> {userInfo.role} Account
+                            </Badge>
+                            <hr className="w-100 opacity-10" />
+                            <div className="text-start mt-2">
+                                <small className="text-muted d-block text-uppercase fw-bold mb-2" style={{ fontSize: '0.65rem' }}>Trạng thái bảo mật</small>
+                                <div className="d-flex align-items-center text-success small">
+                                    <div className="bg-success rounded-circle me-2" style={{ width: '8px', height: '8px' }}></div>
+                                    Tài khoản đã xác thực
+                                </div>
+                            </div>
+                        </Card>
+                    </Col>
+
+                    {/* Right Column: Detailed Info */}
+                    <Col lg={7}>
+                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden h-100">
+                            <div className="p-4 border-bottom bg-white d-flex justify-content-between align-items-center">
+                                <h5 className="mb-0 fw-bold">Thông tin cá nhân</h5>
+                                <Button variant="outline-primary" size="sm" className="rounded-pill px-3" 
+                                    onClick={() => {
+                                        setEditProfileForm({ fullName: userInfo.fullName, phone: userInfo.phone });
+                                        setShowProfileModal(true);
+                                    }}>
+                                    <FaEdit className="me-1" /> Chỉnh sửa
+                                </Button>
+                            </div>
+                            <Card.Body className="p-4">
+                                <Row className="mb-4">
+                                    <Col sm={6} className="mb-3 mb-sm-0">
+                                        <label className="text-muted small fw-bold mb-1 d-block">Họ và Tên</label>
+                                        <div className="d-flex align-items-center p-3 rounded-3 bg-light">
+                                            <FaIdBadge className="text-warning me-3" />
+                                            <span className="fw-medium">{userInfo.fullName}</span>
+                                        </div>
                                     </Col>
-                                    <Col xs={8}>
-                                        {userInfo.fullName}
+                                    <Col sm={6}>
+                                        <label className="text-muted small fw-bold mb-1 d-block">Số điện thoại</label>
+                                        <div className="d-flex align-items-center p-3 rounded-3 bg-light">
+                                            <FaPhoneAlt className="text-warning me-3" />
+                                            <span className="fw-medium">{userInfo.phone}</span>
+                                        </div>
                                     </Col>
                                 </Row>
 
-                                {/* Email */}
-                                <Row className="py-3 border-bottom align-items-center">
-                                    <Col xs={4} className="text-muted fw-bold">
-                                        <FaEnvelope style={{ marginRight: '10px', color: '#FFBF58' }} />
-                                        Email:
-                                    </Col>
-                                    <Col xs={8}>
-                                        {userInfo.email}
-                                    </Col>
-                                </Row>
-                                
-                                {/* SỐ ĐIỆN THOẠ */}
-                                <Row className="py-3 border-bottom align-items-center">
-                                    <Col xs={4} className="text-muted fw-bold">
-                                        <FaPhoneAlt style={{ marginRight: '10px', color: '#FFBF58' }} />
-                                        Số điện thoại:
-                                    </Col>
-                                    <Col xs={8}>
-                                        {userInfo.phone}
-                                    </Col>
-                                </Row>
+                                <div className="mb-4">
+                                    <label className="text-muted small fw-bold mb-1 d-block">Địa chỉ Email</label>
+                                    <div className="d-flex align-items-center p-3 rounded-3 bg-light">
+                                        <FaEnvelope className="text-warning me-3" />
+                                        <span className="fw-medium">{userInfo.email}</span>
+                                    </div>
+                                </div>
 
-                                {/* Vai trò */}
-                                <Row className="py-3 align-items-center">
-                                    <Col xs={4} className="text-muted fw-bold">
-                                        <FaUser style={{ marginRight: '10px', color: '#FFBF58' }} />
-                                        Vai trò:
-                                    </Col>
-                                    <Col xs={8}>
-                                        <Badge bg="info">
-                                            {formatRole(userInfo.role)}
-                                        </Badge>
-                                    </Col>
-                                </Row>
-                                
-                                {/* ACTION BUTTONS */}
-                                <div className="d-grid gap-2 mt-4">
-                                    <Button variant="primary" onClick={handleShowProfileModal}>
-                                        <FaEdit style={{ marginRight: '8px' }} /> Chỉnh sửa thông tin
-                                    </Button>
-                                    <Button variant="warning" onClick={() => setShowPasswordModal(true)}>
-                                        <FaLock style={{ marginRight: '8px' }} /> Đổi Mật Khẩu
+                                <div className="mt-5 p-4 rounded-4 border border-dashed text-center bg-light-subtle">
+                                    <h6 className="fw-bold mb-2">Bảo mật tài khoản</h6>
+                                    <p className="text-muted small mb-3">Bạn nên thay đổi mật khẩu định kỳ để bảo vệ thông tin cá nhân của mình.</p>
+                                    <Button variant="dark" className="rounded-pill px-4 shadow-sm" onClick={() => setShowPasswordModal(true)}>
+                                        <FaLock className="me-2 text-warning" /> Thay đổi mật khẩu ngay
                                     </Button>
                                 </div>
                             </Card.Body>
@@ -246,81 +186,67 @@ const Profile = () => {
                     </Col>
                 </Row>
             </Container>
-            
-            {/* Modal Chỉnh sửa Profile (Tên + SĐT) */}
-            <Modal show={showProfileModal} onHide={() => setShowProfileModal(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Chỉnh sửa thông tin cá nhân</Modal.Title>
+
+            {/* --- Modals --- */}
+            {/* Modal Profile */}
+            <Modal show={showProfileModal} onHide={() => setShowProfileModal(false)} centered contentClassName="border-0 shadow rounded-4">
+                <Modal.Header closeButton className="border-0 pb-0 px-4 pt-4">
+                    <Modal.Title className="fw-bold">Cập nhật hồ sơ</Modal.Title>
                 </Modal.Header>
-                <Modal.Body>
-                    <Form onSubmit={handleProfileUpdate}>
+                <Form onSubmit={handleProfileUpdate}>
+                    <Modal.Body className="p-4">
                         <Form.Group className="mb-3">
-                            <Form.Label>Họ và Tên</Form.Label>
-                            <Form.Control 
-                                type="text" 
-                                value={editProfileForm.fullName} 
-                                onChange={(e) => setEditProfileForm({...editProfileForm, fullName: e.target.value})} 
-                                required 
-                                autoFocus
-                            />
+                            <Form.Label className="small fw-bold">Họ và Tên</Form.Label>
+                            <Form.Control className="p-3 bg-light border-0 rounded-3" value={editProfileForm.fullName}
+                                onChange={(e) => setEditProfileForm({...editProfileForm, fullName: e.target.value})} required />
                         </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Số điện thoại</Form.Label>
-                            <Form.Control 
-                                type="text" 
-                                value={editProfileForm.phone} 
-                                onChange={(e) => setEditProfileForm({...editProfileForm, phone: e.target.value})} 
-                                placeholder="Nhập số điện thoại"
-                            />
+                        <Form.Group>
+                            <Form.Label className="small fw-bold">Số điện thoại</Form.Label>
+                            <Form.Control className="p-3 bg-light border-0 rounded-3" value={editProfileForm.phone}
+                                onChange={(e) => setEditProfileForm({...editProfileForm, phone: e.target.value})} />
                         </Form.Group>
-                        <Button variant="primary" type="submit" className="w-100 mt-2">
-                            Lưu Thay Đổi
+                    </Modal.Body>
+                    <Modal.Footer className="border-0 p-4 pt-0">
+                        <Button variant="light" className="rounded-pill px-4" onClick={() => setShowProfileModal(false)}>Hủy</Button>
+                        <Button variant="warning" type="submit" className="rounded-pill px-4 fw-bold" disabled={loading}>
+                            {loading ? <Spinner size="sm" /> : "Lưu thay đổi"}
                         </Button>
-                    </Form>
-                </Modal.Body>
+                    </Modal.Footer>
+                </Form>
             </Modal>
-            
-            {/* Modal Đổi Mật Khẩu */}
-            <Modal show={showPasswordModal} onHide={() => setShowPasswordModal(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title><FaLock style={{ marginBottom: '3px', marginRight: '5px' }} /> Đổi Mật Khẩu</Modal.Title>
+
+            {/* Modal Password */}
+            <Modal show={showPasswordModal} onHide={() => setShowPasswordModal(false)} centered contentClassName="border-0 shadow rounded-4">
+                <Modal.Header closeButton className="border-0 pb-0 px-4 pt-4">
+                    <Modal.Title className="fw-bold">Đổi mật khẩu</Modal.Title>
                 </Modal.Header>
-                <Modal.Body>
-                    <Form onSubmit={handlePasswordChange}>
+                <Form onSubmit={handlePasswordChange}>
+                    <Modal.Body className="p-4">
                         <Form.Group className="mb-3">
-                            <Form.Label>Mật khẩu hiện tại</Form.Label>
-                            <Form.Control 
-                                type="password" 
-                                value={newPassword.current}
-                                onChange={(e) => setNewPassword({...newPassword, current: e.target.value})}
-                                required
-                            />
+                            <Form.Label className="small fw-bold">Mật khẩu hiện tại</Form.Label>
+                            <Form.Control type="password" required className="p-3 bg-light border-0 rounded-3" 
+                                onChange={(e) => setNewPassword({...newPassword, current: e.target.value})} />
                         </Form.Group>
                         <Form.Group className="mb-3">
-                            <Form.Label>Mật khẩu mới</Form.Label>
-                            <Form.Control 
-                                type="password" 
-                                value={newPassword.new}
-                                onChange={(e) => setNewPassword({...newPassword, new: e.target.value})}
-                                required
-                            />
+                            <Form.Label className="small fw-bold">Mật khẩu mới</Form.Label>
+                            <Form.Control type="password" required className="p-3 bg-light border-0 rounded-3"
+                                onChange={(e) => setNewPassword({...newPassword, new: e.target.value})} />
                         </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Xác nhận mật khẩu mới</Form.Label>
-                            <Form.Control 
-                                type="password" 
-                                value={newPassword.confirm}
-                                onChange={(e) => setNewPassword({...newPassword, confirm: e.target.value})}
-                                required
-                            />
+                        <Form.Group>
+                            <Form.Label className="small fw-bold">Xác nhận mật khẩu mới</Form.Label>
+                            <Form.Control type="password" required className="p-3 bg-light border-0 rounded-3"
+                                onChange={(e) => setNewPassword({...newPassword, confirm: e.target.value})} />
                         </Form.Group>
-                        <Button variant="warning" type="submit" className="w-100">
-                            Xác Nhận Đổi Mật Khẩu
+                    </Modal.Body>
+                    <Modal.Footer className="border-0 p-4 pt-0">
+                        <Button variant="light" className="rounded-pill px-4" onClick={() => setShowPasswordModal(false)}>Hủy</Button>
+                        <Button variant="dark" type="submit" className="rounded-pill px-4 fw-bold text-warning" disabled={loading}>
+                            {loading ? <Spinner size="sm" /> : "Xác nhận"}
                         </Button>
-                    </Form>
-                </Modal.Body>
+                    </Modal.Footer>
+                </Form>
             </Modal>
-        </>
+        </div>
     );
 };
 
