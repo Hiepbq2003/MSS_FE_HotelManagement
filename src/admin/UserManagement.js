@@ -39,7 +39,6 @@ const getStatusVariant = (status) => {
     }
 }
 
-// Hàm trích xuất lỗi chi tiết
 const getErrorMessage = (err) => {
     if (err.response && err.response.data) {
         // Kiểm tra nếu body là string (thường là lỗi IllegalArgumentException)
@@ -63,11 +62,6 @@ const getErrorMessage = (err) => {
     return "Lỗi không xác định hoặc lỗi kết nối mạng.";
 };
 
-
-// =================================================================================
-// 1. CREATE USER MODAL (Thêm mới nhân viên)
-// =================================================================================
-
 function CreateUserModal({ show, handleClose, handleCreate, editableRoles }) {
     const initialRole = editableRoles.length > 0 ? editableRoles[0] : 'RECEPTION';
     const [formData, setFormData] = useState({
@@ -82,7 +76,7 @@ function CreateUserModal({ show, handleClose, handleCreate, editableRoles }) {
 
     useEffect(() => {
         if (show) {
-            // Reset form khi mở Modal
+     
             setFormData({
                 fullName: '',
                 email: '',
@@ -105,34 +99,28 @@ function CreateUserModal({ show, handleClose, handleCreate, editableRoles }) {
         
         const { fullName, email, password, confirmPassword, role, phone } = formData;
 
-        // 1. Check required fields
         if (!fullName || !email || !password || !confirmPassword || !role) {
             setValidationError('Vui lòng điền đầy đủ Tên, Email, Mật khẩu và Vai trò.');
             return;
         }
 
-        // 2. Password match check
         if (password !== confirmPassword) {
             setValidationError('Mật khẩu và Xác nhận Mật khẩu không khớp.');
             return;
         }
         
-        // 3. Email format check
         if (!/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
             setValidationError('Email không hợp lệ.');
             return;
         }
 
-        // 4. Password format check (chỉ cần 6 ký tự số)
         if (!/^\d{6}$/.test(password)) {
              setValidationError('Mật khẩu phải là 6 ký tự số.');
              return;
         }
 
-        // 5. Tạo username từ email (giả định)
         const username = email.split('@')[0];
 
-        // Gửi UserRequest DTO (bao gồm hotelId: null để khớp BE)
         handleCreate({ 
             fullName, 
             email, 
@@ -140,10 +128,9 @@ function CreateUserModal({ show, handleClose, handleCreate, editableRoles }) {
             password, 
             role: role, 
             phone,
-            hotelId: null // Bắt buộc phải có để khớp DTO tạo mới ở BE
+            hotelId: null
         });
         
-        // Đóng modal sau khi gửi thành công
         handleClose();
     };
 
@@ -242,12 +229,8 @@ function CreateUserModal({ show, handleClose, handleCreate, editableRoles }) {
     );
 }
 
-// =================================================================================
-// 2. EDIT USER MODAL (Gộp Sửa Chi tiết và Trạng thái)
-// =================================================================================
-
 function EditUserModal({ show, handleClose, user, handleSave, editableRoles }) {
-    // Xác định xem user đang chỉnh sửa có phải Admin không
+
     const isTargetUserAdmin = user?.role === 'ADMIN'; 
     const [formData, setFormData] = useState({
         fullName: user?.fullName || '',
@@ -259,7 +242,7 @@ function EditUserModal({ show, handleClose, user, handleSave, editableRoles }) {
 
     useEffect(() => {
         if (user) {
-            // Đảm bảo dữ liệu ban đầu được set đúng khi modal mở
+
             setFormData({
                 fullName: user.fullName || '',
                 phone: user.phone || '',
@@ -281,26 +264,22 @@ function EditUserModal({ show, handleClose, user, handleSave, editableRoles }) {
             return;
         }
         
-        // Payload chứa tất cả các trường cần cập nhật
         const updatedFields = {
             fullName: formData.fullName,
             phone: formData.phone,
             role: formData.role, 
-            status: formData.status // Đảm bảo status được gửi đi
+            status: formData.status 
         };
         
-        // Truyền updatedFields và user gốc vào handleSave
         handleSave(user.id, updatedFields, user); 
         handleClose();
     };
     
-    // Hàm kiểm tra xem có sự thay đổi nào ngoài các trường bị disable không
     const originalDetailsMatch = (user, formData) => {
-        // Chỉ cần so sánh FullName và Phone, vì Role và Status của Admin bị disable.
+       
         return user.fullName === formData.fullName && user.phone === formData.phone;
     }
 
-    // Nếu user chưa được chọn hoặc đang loading
     if (!user) return null;
 
     return (
@@ -311,7 +290,6 @@ function EditUserModal({ show, handleClose, user, handleSave, editableRoles }) {
             <Modal.Body>
                 {error && <Alert variant="danger">{error}</Alert>}
                 
-                {/* Cảnh báo khi là Admin */}
                 {isTargetUserAdmin && (
                     <Alert variant="info">
                         Đây là tài khoản Quản trị viên (ADMIN). **Vai trò và Trạng thái không thể thay đổi** để bảo đảm an ninh hệ thống.
@@ -386,7 +364,7 @@ function EditUserModal({ show, handleClose, user, handleSave, editableRoles }) {
                 <Button 
                     variant="warning" 
                     onClick={handleInternalSave}
-                    // Disable nếu không có thay đổi và là Admin (hoặc không có user)
+          
                     disabled={!user || (isTargetUserAdmin && originalDetailsMatch(user, formData))}
                 >
                     Lưu Thay Đổi
@@ -402,21 +380,18 @@ function EditUserModal({ show, handleClose, user, handleSave, editableRoles }) {
 // =================================================================================
 
 function UserManagement() {
-    // --- State Hooks ---
+
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
-    // Lấy giá trị ban đầu cho hiển thị và kiểm tra quyền
     const currentUserRole = localStorage.getItem('userRole') ? localStorage.getItem('userRole').toUpperCase() : '';
     const currentUserId = localStorage.getItem('userId');
 
-    // States cho Modals
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
 
-    // --- Side Effects (Initial Load & Permission Check) ---
     useEffect(() => {
         if (!ALLOWED_ACCESS_ROLES.includes(currentUserRole)) {
             setError('Bạn không có quyền truy cập trang Quản lý Người dùng. Chỉ Admin mới được truy cập.');
@@ -426,19 +401,17 @@ function UserManagement() {
         fetchUsers();
     }, [currentUserRole]);
 
-    // --- Data Fetching Logic ---
     const fetchUsers = async () => {
         try {
             setLoading(true);
             
-            // KHÔNG GỬI HEADER X-User-Role (như đã thống nhất)
             const response = await api.get('/user/staff'); 
             
             const data = Array.isArray(response) ? response : [];
             
             const processedUsers = data.map(user => ({
                 ...user,
-                // Chuyển role và status sang UPPERCASE để hiển thị thống nhất trong FE
+  
                 role: user.role ? user.role.toUpperCase() : 'UNKNOWN', 
                 status: user.status ? user.status.toUpperCase() : 'UNKNOWN'
             }));
@@ -454,34 +427,50 @@ function UserManagement() {
         }
     };
     
-    // --- Permission & Role Logic ---
     const isCurrentUserAdmin = currentUserRole === 'ADMIN';
 
     const canEdit = (targetUserRole, targetUserId) => {
         if (!isCurrentUserAdmin) return false;
-        // Chặn hoàn toàn việc chỉnh sửa/vô hiệu hóa bất kỳ tài khoản Admin nào.
+    
         return targetUserRole !== 'ADMIN';
     };
     
     const getEditableRoles = () => {
         if (isCurrentUserAdmin) {
-            // Cho phép Admin tạo tài khoản với mọi vai trò trừ Admin
+     
             return ALL_STAFF_ROLES.filter(role => role !== 'ADMIN');
         }
         return [];
     };
 
-    // --- CRUD Handlers ---
-
-    // CREATE Logic
     const handleCreateUser = async (formData) => {
-        // Không cần kiểm tra role nữa vì API đã hardcode role là Admin
         setShowCreateModal(false);
 
-        // Chuyển role SANG CHỮ THƯỜNG TRƯỚC KHI GỬI ĐẾN BACKEND
+        // 1. Lấy role từ form và viết hoa toàn bộ
+        let inputRole = formData.role ? formData.role.toUpperCase() : 'RECEPTION';
+        let correctRole = '';
+
+        // 2. Map chính xác 100% từ Frontend sang Java Enum ở Backend
+        switch (inputRole) {
+            case 'RECEPTION':
+                correctRole = 'RECEPTIONIST';
+                break;
+            case 'HOUSEKEEPING':
+                correctRole = 'HOUSEKEEPING';
+                break;
+            case 'MANAGER':
+                correctRole = 'MANAGER';
+                break;
+            case 'ADMIN':
+                correctRole = 'ADMIN';
+                break;
+            default:
+                correctRole = 'RECEPTIONIST';
+        }
+
         const payload = {
             ...formData,
-            role: formData.role ? formData.role.toLowerCase() : 'reception' // Chuyển sang chữ thường
+            role: correctRole 
         };
 
         try {
@@ -491,41 +480,34 @@ function UserManagement() {
             fetchUsers(); 
         } catch (err) {
             console.error("Lỗi tạo người dùng:", err);
+   
             const errorMessage = getErrorMessage(err);
             alert(`Lỗi khi tạo người dùng: ${errorMessage}`);
         }
     };
     
-    // EDIT Details (Tên/SĐT/Vai trò/Trạng thái) Logic - GỘP HẾT VÀO ĐÂY
     const handleEditDetails = async (userId, updatedFields, originalUser) => {
         
-        // 1. CHUẨN BỊ DỮ LIỆU CẬP NHẬT CHI TIẾT (API /details)
         
         const roleToSend = updatedFields.role ? updatedFields.role.toLowerCase() : originalUser.role.toLowerCase();
-        // Cần đảm bảo rằng trạng thái được gửi đi trong DTO details không gây lỗi
-        // Tuy nhiên, vì BE API details không xử lý Status, ta chỉ cần đảm bảo DTO không bị lỗi format.
-        // Ta sẽ ưu tiên gọi API /status riêng biệt nếu trạng thái thay đổi.
-        
+     
         const detailUpdatePayload = {
-            // Giữ lại các trường không thay đổi, giả định BE cần DTO đầy đủ
+        
             username: originalUser.username,
             email: originalUser.email, 
             
-            // Trường thay đổi
             fullName: updatedFields.fullName,
             phone: updatedFields.phone,
             role: roleToSend,
             
-            // DTO UserRequest không có trường status, nên bỏ qua.
             
-            password: originalUser.password || '******', // Giả định
+            password: originalUser.password || '******',
             hotelId: originalUser.hotelId || null, 
         };
 
         try {
             let updateStatus = false;
             
-            // 1. CẬP NHẬT CHI TIẾT (PUT /user/{userId}/details)
             await api.put(`/user/${userId}/details`, detailUpdatePayload);
             
             // 2. CẬP NHẬT TRẠNG THÁI (PUT /user/{userId}/status) - TÁCH RIÊNG
