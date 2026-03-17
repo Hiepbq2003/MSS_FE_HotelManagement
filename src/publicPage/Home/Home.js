@@ -1,16 +1,12 @@
-import React, { useEffect, useState } from "react";
-import { Container, Row, Col, Card, Button, Spinner } from "react-bootstrap";
+import React from "react";
+import { Container, Row, Col, Card } from "react-bootstrap";
 import { FaClock } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import HeroSection from "./HeroSection";
 import ServiceSection from "./ServiceSection";
 import TestimonialsSection from "./TestimonialsSection";
-import api from "../../api/apiConfig";
 
 const Home = () => {
-    const [rooms, setRooms] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const navigate = useNavigate();
 
     const blogs = [
@@ -51,47 +47,6 @@ const Home = () => {
             date: "12TH APRIL, 2019",
         },
     ];
-
-    // Danh sách ảnh cho các loại phòng
-    const ROOM_IMAGES = [
-        "https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=500&h=350&fit=crop",
-        "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=500&h=350&fit=crop",
-        "https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=500&h=350&fit=crop",
-        "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=500&h=350&fit=crop",
-        "https://images.unsplash.com/photo-1582719478254-c79a62d4e7e3?w=500&h=350&fit=crop",
-        "https://images.unsplash.com/photo-1564078516393-cf04bd966897?w=500&h=350&fit=crop"
-    ];
-
-    useEffect(() => {
-        const fetchFeaturedRooms = async () => {
-            try {
-                const data = await api.get("/room-type/hotel/1");
-                // Lấy 6 phòng đầu tiên để hiển thị
-                const featuredRooms = data.slice(0, 3);
-                setRooms(featuredRooms);
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching featured rooms:", err);
-                setError("Không thể tải dữ liệu phòng");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchFeaturedRooms();
-    }, []);
-
-    const getRoomImage = (index) => {
-        return ROOM_IMAGES[index % ROOM_IMAGES.length];
-    };
-
-    const formatPrice = (price) => {
-        return new Intl.NumberFormat('vi-VN', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(price);
-    };
-
     return (
         <>
             <HeroSection />
@@ -181,122 +136,6 @@ const Home = () => {
                 </Row>
             </Container>
             <hr style={{ marginBottom: "100px" }}></hr>
-
-            {/* Featured Rooms Section */}
-            <Container style={{ marginBottom: "100px" }}>
-                <div style={{ textAlign: "center", marginBottom: "50px" }}>
-                    <p
-                        style={{
-                            textTransform: "uppercase",
-                            color: "var(--main-color)",
-                            fontWeight: "600",
-                            marginBottom: "8px",
-                            letterSpacing: "2px",
-                        }}
-                    >
-                        Our Rooms
-                    </p>
-                    <h1 style={{ fontWeight: "700", marginBottom: "10px" }}>Featured Accommodations</h1>
-                    <p style={{ color: "#666", fontSize: "16px" }}>
-                        Discover our carefully curated selection of luxurious rooms and suites
-                    </p>
-                </div>
-
-                {loading ? (
-                    <div className="text-center py-5">
-                        <Spinner animation="border" variant="primary" />
-                        <p className="mt-3">Đang tải thông tin phòng...</p>
-                    </div>
-                ) : error ? (
-                    <div className="text-center py-5">
-                        <p className="text-muted">Tạm thời không thể hiển thị thông tin phòng</p>
-                    </div>
-                ) : (
-                    <Row className="g-4">
-                        {rooms.map((room, index) => (
-                            <Col key={room.id} lg={4} md={6}>
-                                <Card
-                                    className="h-100 shadow-sm border-0"
-                                    style={{
-                                        borderRadius: "16px",
-                                        overflow: "hidden",
-                                        transition: "all 0.3s ease",
-                                        cursor: "pointer",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = "translateY(-5px)";
-                                        e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.15)";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = "translateY(0)";
-                                        e.currentTarget.style.boxShadow = "0 3px 10px rgba(0,0,0,0.1)";
-                                    }}
-                                    onClick={() => navigate(`/rooms/${room.id}`)}
-                                >
-                                    <Card.Img
-                                        variant="top"
-                                        src={getRoomImage(index)}
-                                        alt={room.name}
-                                        style={{
-                                            height: "250px",
-                                            objectFit: "cover",
-                                        }}
-                                    />
-
-                                    <Card.Body style={{ padding: "25px" }}>
-                                        <div className="d-flex justify-content-between align-items-start mb-2">
-                                            <Card.Title style={{ fontWeight: "600", margin: 0 }}>
-                                                {room.name}
-                                            </Card.Title>
-                                            <h5 style={{ color: "#f4b400", fontWeight: "bold", margin: 0 }}>
-                                                {formatPrice(room.basePrice)}
-                                                <span style={{ fontSize: "14px", color: "#666" }}>/night</span>
-                                            </h5>
-                                        </div>
-                                        
-                                        <p
-                                            style={{
-                                                color: "#6c757d",
-                                                fontSize: "14px",
-                                                minHeight: "60px",
-                                                marginBottom: "15px",
-                                            }}
-                                        >
-                                            {room.description || "Experience luxury and comfort in our beautifully designed room."}
-                                        </p>
-
-                                        <div className="d-flex justify-content-between align-items-center text-muted small mb-3">
-                                            <span>
-                                                <strong>Capacity:</strong> {room.capacity} person(s)
-                                            </span>
-                                            <span>
-                                                <strong>Bed:</strong> {room.bedInfo || "King Bed"}
-                                            </span>
-                                        </div>
-
-                                        <Button
-                                            variant="outline-dark"
-                                            style={{
-                                                width: "100%",
-                                                borderRadius: "8px",
-                                                fontWeight: "500",
-                                                padding: "10px 0",
-                                                border: "2px solid",
-                                            }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                navigate(`/rooms/${room.id}`);
-                                            }}
-                                        >
-                                            View Details
-                                        </Button>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                        ))}
-                    </Row>
-                )}
-            </Container>
 
             <ServiceSection />
             <TestimonialsSection/>
