@@ -1,400 +1,273 @@
-import React, { useState, useEffect } from 'react';
-import Breadcrumbs from '../components/Breadcrumbs';
+import React from 'react';
 
-const MAIN_COLOR = '#fbb500'; // Màu Vàng/Cam chủ đạo
+const MAIN_COLOR = '#fbb500';
 
-// --- Component con quản lý hover state và style ---
-// Đã thêm subtitle vào props
-const GalleryItemHover = ({ imgUrl, height, title, subtitle, isLarge = false }) => {
-    const [isHovered, setIsHovered] = useState(false);
-
-    // Dùng 700px cho Large item như yêu cầu cũ
-    const baseHeight = isLarge ? '700px' : height;
-    const opacity = isHovered ? 1 : 0;
-    
-    // 1. STYLE TĨNH CỦA KHỐI HÌNH ẢNH (gallery-item)
-    const galleryItemStyle = {
-        backgroundImage: `url(${imgUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        height: baseHeight,
+// --- 1. Component Gallery Card (Hiệu ứng Slide-up & Glassmorphism) ---
+const GalleryCard = ({ img, height, title, sub, isLarge = false }) => (
+    <div className="modern-g-card" style={{
+        height: isLarge ? '700px' : height,
         position: 'relative',
-        borderRadius: '5px',
+        borderRadius: '24px',
         overflow: 'hidden',
-        boxShadow: '0 5px 15px rgba(0,0,0,0.15)', 
         cursor: 'pointer',
-        // Hiệu ứng scale nhẹ khi hover
-        transform: isHovered ? 'scale(1.03)' : 'scale(1)',
-        transition: 'transform 0.4s ease-out',
-    };
+        boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+        transition: 'all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+    }}>
+        {/* Background Image */}
+        <div className="g-img-bg" style={{
+            backgroundImage: `url(${img})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            width: '100%',
+            height: '100%',
+            transition: 'transform 0.8s ease'
+        }} />
 
-    // 2. STYLE CỦA LỚP OVERLAY TỐI (Mô phỏng ::after)
-    const overlayStyle = {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        background: 'rgba(25, 25, 26, 0.55)', // Tối hơn một chút
-        opacity: opacity, // Điều khiển opacity bằng state
-        transition: 'opacity 0.3s',
-        zIndex: 2,
-    };
-    
-    // 3. STYLE CỦA TEXT VÀ KHU VỰC TEXT (Mô phỏng .gi-text)
-    const textWrapperStyle = {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 3,
-        opacity: opacity, 
-        transition: 'opacity 0.3s 0.1s', 
-    };
+        {/* Overlay Layer */}
+        <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 60%, transparent 100%)',
+            zIndex: 1
+        }} />
 
-    const titleStyle = {
-        color: '#ffffff',
-        fontSize: isLarge ? '2.4rem' : '1.8rem',
-        fontWeight: '700',
-        textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-        textAlign: 'center',
-        padding: '0 20px',
-        margin: '0',
-    };
-    
-    // --- STYLE CHO SUBTITLE ĐÃ THIẾT LẬP ---
-    const subtitleStyle = {
-        color: '#f9f9f9', // Màu trắng ngà
-        fontSize: isLarge ? '1.2rem' : '1rem',
-        fontWeight: '400',
-        marginTop: '10px',
-        textAlign: 'center',
-        padding: '0 20px',
-        maxWidth: '80%', // Giới hạn chiều rộng để subtitle không quá dài
-        margin: '10px auto 0 auto', // Căn giữa
-    };
-    // ----------------------------------------
-
-    return (
-        <div 
-            className="gallery-item"
-            style={galleryItemStyle}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
-            {/* Lớp Overlay tối (Mô phỏng ::after) */}
-            <div style={overlayStyle}></div> 
-            
-            {/* Vùng Text và Tiêu đề (Mô phỏng .gi-text) */}
-            <div style={textWrapperStyle}>
-                <div style={{display: 'flex', flexDirection: 'column'}}>
-                    <h3 style={titleStyle}>{title}</h3>
-                    {/* Hiển thị Subtitle nếu có */}
-                    {subtitle && <p style={subtitleStyle}>{subtitle}</p>}
-                </div>
-            </div>
+        {/* Text Content Layer */}
+        <div className="g-card-content" style={{
+            position: 'absolute',
+            bottom: '0',
+            left: '0',
+            right: '0',
+            padding: '30px',
+            zIndex: 2,
+            transform: 'translateY(15px)',
+            opacity: 0.9,
+            transition: 'all 0.4s ease'
+        }}>
+            <h3 style={{ 
+                color: '#fff', 
+                fontSize: isLarge ? '2.2rem' : '1.4rem', 
+                fontWeight: '700', 
+                margin: 0,
+                textShadow: '0 2px 10px rgba(0,0,0,0.3)'
+            }}>
+                {title}
+            </h3>
+            {sub && (
+                <p style={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    fontSize: '0.95rem', 
+                    marginTop: '10px',
+                    lineHeight: '1.5',
+                    display: 'none' // Sẽ hiện ra khi hover
+                }}>
+                    {sub}
+                </p>
+            )}
         </div>
-    );
-};
-// --- Kết thúc GalleryItemHover Component ---
 
+        <style dangerouslySetInnerHTML={{ __html: `
+            .modern-g-card:hover .g-img-bg { transform: scale(1.1); }
+            .modern-g-card:hover .g-card-content { transform: translateY(-10px); opacity: 1; }
+            .modern-g-card:hover .g-card-content p { display: block; animation: fadeInUp 0.4s forwards; }
+            .modern-g-card:hover { transform: translateY(-5px); boxShadow: 0 20px 40px rgba(0,0,0,0.15); }
+            @keyframes fadeInUp {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `}} />
+    </div>
+);
+
+// --- 2. Main AboutUs Component ---
 const AboutUs = () => {
-    
-    useEffect(() => {
-      // Logic side effects (nếu có)
-    }, []);
-
-    // Hàm tiện ích để đặt ảnh nền và các thuộc tính cơ bản (sử dụng cho các section khác)
-    const getBgStyle = (imgUrl, height = 'auto', color = 'transparent') => ({
-        backgroundImage: `url(${imgUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        height: height,
-        backgroundColor: color,
-        position: 'relative', 
-        borderRadius: '5px', 
-        overflow: 'hidden',
-        boxShadow: '0 5px 15px rgba(0,0,0,0.15)', 
-        transition: 'transform 0.3s ease-in-out', 
-        cursor: 'pointer',
-    });
-    
-    // Style cho lớp Overlay của hình ảnh *KHÔNG CÓ HOVER* (dùng cho AboutUs Services)
-    const staticOverlayStyle = {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        width: '100%',
-        padding: '25px 20px',
-        background: 'linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0))', // Gradient làm mờ dần
-        color: 'white',
-        zIndex: 2,
-    };
-    
-    // Style cho tiêu đề trong Static Overlay
-    const staticOverlayTitleStyle = {
-        fontSize: '1.6rem',
-        fontWeight: '700',
-        margin: '0',
-    };
-
+    // Mẹo: Tự động lấy URL gốc (Dùng cho cả Vite và CRA)
+    const publicPath = process.env.PUBLIC_URL || '';
 
     return (
-        <div>
+        <div style={{ backgroundColor: '#fff', color: '#1a1a1a', fontFamily: "'Inter', sans-serif" }}>
             
-            {/* About Us Page Section Begin */}
-            <section style={{ padding: '100px 0', backgroundColor: '#f9f9f9' }}> 
+            {/* Header Section: Welcome */}
+            <section style={{ padding: '120px 0 80px' }}>
                 <div className="container">
-                    <div className="about-page-text">
-                        <div className="row">
-                            {/* Cột giới thiệu chính */}
-                            <div className="col-lg-6">
-                                <div className="ap-title">
-                                    <h2 style={{ 
-                                        fontSize: '3.2rem', 
-                                        fontWeight: '800', 
-                                        marginBottom: '25px', 
-                                        color: '#222',
-                                        lineHeight: '1.1',
-                                    }}>
-                                        Welcome To Sona.
-                                    </h2>
-                                    <p style={{ 
-                                        color: '#555', 
-                                        lineHeight: '1.8', 
-                                        fontSize: '17px', 
-                                        fontWeight: '300',
-                                    }}>
-                                        Built in 1910 during the Belle Epoque period, this hotel is located in the center of
-                                        Paris, with easy access to the city’s tourist attractions. It offers tastefully
-                                        decorated rooms.
-                                    </p>
-                                </div>
-                            </div>
-                            {/* Cột dịch vụ ngắn */}
-                            <div className="col-lg-5 offset-lg-1">
-                                <ul style={{ 
-                                    listStyle: 'none', 
-                                    paddingLeft: 0, 
-                                    marginTop: '25px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '12px' 
-                                }}>
-                                    {[
-                                        '20% Off On Accommodation.',
-                                        'Complimentary Daily Breakfast',
-                                        '3 Pcs Laundry Per Day',
-                                        'Free Wifi.',
-                                        'Discount 20% On F&B'
-                                    ].map((service, index) => (
-                                        <li key={index} style={{ 
-                                            fontSize: '17px', 
-                                            color: '#333',
-                                            fontWeight: '500',
-                                        }}>
-                                            <i 
-                                                className="icon_check" 
-                                                style={{ 
-                                                    color: MAIN_COLOR, 
-                                                    marginRight: '12px', 
-                                                    fontWeight: 'bold',
-                                                    fontSize: '1.2rem',
-                                                }}
-                                            >&#10003;</i> 
-                                            {service}
-                                        </li>
-                                    ))}
-                                </ul>
+                    <div className="row align-items-center">
+                        <div className="col-lg-6">
+                            <span style={{ 
+                                color: MAIN_COLOR, 
+                                fontWeight: '700', 
+                                letterSpacing: '3px', 
+                                textTransform: 'uppercase', 
+                                fontSize: '0.9rem',
+                                display: 'block',
+                                marginBottom: '15px'
+                            }}>
+                                Established 1910
+                            </span>
+                            <h2 style={{ 
+                                fontSize: '4rem', 
+                                fontWeight: '800', 
+                                lineHeight: '1.1', 
+                                marginBottom: '30px',
+                                letterSpacing: '-1px'
+                            }}>
+                                Welcome to <span style={{ color: MAIN_COLOR }}>Sona Hotel.</span>
+                            </h2>
+                            <p style={{ fontSize: '1.15rem', color: '#555', lineHeight: '1.8', maxWidth: '540px' }}>
+                                Built during the Belle Époque period, this landmark hotel is located in the heart of Paris. 
+                                We combine timeless elegance with modern comfort to create an unforgettable sanctuary.
+                            </p>
+                            
+                            <div style={{ marginTop: '40px', display: 'flex', gap: '25px', flexWrap: 'wrap' }}>
+                                {[
+                                    '20% Off Accommodation',
+                                    'Daily Breakfast',
+                                    'Premium Laundry',
+                                    'Free High-Speed Wifi'
+                                ].map((service, idx) => (
+                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', fontWeight: '600', fontSize: '1rem' }}>
+                                        <div style={{ 
+                                            width: '24px', height: '24px', borderRadius: '50%', 
+                                            backgroundColor: 'rgba(251, 181, 0, 0.15)', color: MAIN_COLOR,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            marginRight: '12px', fontSize: '0.8rem'
+                                        }}>✔</div>
+                                        {service}
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    </div>
-
-                    {/* Dịch vụ hình ảnh (KHÔNG CÓ HOVER) - Vẫn dùng style cũ */}
-                    <div className="about-page-services" style={{ marginTop: '70px' }}>
-                        <div className="row" style={{ gap: '30px 0' }}>
-                            {/* Item 1 */}
-                            <div className="col-md-4">
-                                <div 
-                                    className="ap-service-item" 
-                                    style={getBgStyle('./about/about-p1.jpg', '350px', '#ccc')}
-                                >
-                                    <div style={staticOverlayStyle}>
-                                        <h3 style={staticOverlayTitleStyle}>Restaurants Services</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* Item 2 */}
-                            <div className="col-md-4">
-                                <div 
-                                    className="ap-service-item" 
-                                    style={getBgStyle('./about/about-p2.jpg', '350px', '#ccc')}
-                                >
-                                    <div style={staticOverlayStyle}>
-                                        <h3 style={staticOverlayTitleStyle}>Travel & Camping</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* Item 3 */}
-                            <div className="col-md-4">
-                                <div 
-                                    className="ap-service-item" 
-                                    style={getBgStyle('./about/about-p3.jpg', '350px', '#ccc')}
-                                >
-                                    <div style={staticOverlayStyle}>
-                                        <h3 style={staticOverlayTitleStyle}>Event & Party</h3>
-                                    </div>
+                        <div className="col-lg-5 offset-lg-1">
+                            <div style={{ position: 'relative' }}>
+                                <img 
+                                    src={`${publicPath}/about/about-p1.jpg`} 
+                                    alt="Hotel View" 
+                                    style={{ width: '100%', borderRadius: '30px', boxShadow: '20px 20px 60px rgba(0,0,0,0.1)' }} 
+                                />
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: '-30px',
+                                    left: '-30px',
+                                    backgroundColor: MAIN_COLOR,
+                                    padding: '30px',
+                                    borderRadius: '20px',
+                                    color: 'white',
+                                    textAlign: 'center',
+                                    boxShadow: '0 10px 30px rgba(251, 181, 0, 0.3)'
+                                }}>
+                                    <h4 style={{ margin: 0, fontSize: '2.5rem', fontWeight: '800' }}>110+</h4>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase' }}>Years of Excellence</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
-            {/* About Us Page Section End */}
 
-            
-            {/* Video Section Begin (Giữ nguyên phần Video) */}
-            <section 
-                style={{...getBgStyle('./video-bg.jpg', '500px'), boxShadow: 'none'}} 
-                className="video-section" 
-            >
-                {/* Lớp Overlay tối cho Video Section */}
+            {/* Video Section: Cinematic Autoplay (Full Width) */}
+            <section style={{ position: 'relative', height: '650px', overflow: 'hidden', backgroundColor: '#000' }}>
+                <iframe
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        width: '100vw',
+                        height: '56.25vw', // Tỷ lệ 16:9
+                        transform: 'translate(-50%, -50%)',
+                        pointerEvents: 'none'
+                    }}
+                    // Giải thích link: autoplay=1 (tự chạy), mute=1 (tắt tiếng - bắt buộc để chạy), loop=1 & playlist (để lặp lại)
+                    src="https://www.youtube.com/embed/H1CIBqDeWQ0?autoplay=1&mute=1&loop=1&playlist=H1CIBqDeWQ0&controls=0&showinfo=0&rel=0&modestbranding=1"
+                    title="Hotel Cinematic Tour"
+                    frameBorder="0"
+                    allow="autoplay; encrypted-media"
+                ></iframe>
+
+                {/* Glassmorphism Overlay */}
                 <div style={{
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    backgroundColor: 'rgba(0, 0, 0, 0.65)', 
-                    zIndex: 1,
-                }}></div>
-
-                <div className="container" style={{ position: 'relative', height: '100%', zIndex: 2 }}>
-                    <div className="row" style={{ height: '100%', alignItems: 'center' }}>
-                        <div className="col-lg-12">
-                            <div className="video-text" style={{ textAlign: 'center', color: 'white', padding: '0 15px' }}>
-                                <h2 style={{ 
-                                    fontSize: '3rem', 
-                                    fontWeight: '700', 
-                                    marginBottom: '15px',
-                                    lineHeight: '1.2',
-                                }}>
-                                    Discover Our Hotel & Services.
-                                </h2>
-                                <p style={{ 
-                                    fontSize: '1.1rem', 
-                                    opacity: '0.9', 
-                                    marginBottom: '40px',
-                                    fontWeight: '300',
-                                }}>
-                                   Experience the charm and beauty of our destination
-                                </p>
-                                <a 
-                                    href="https://www.youtube.com/watch?v=H1CIBqDeWQ0" 
-                                    className="play-btn video-popup"
-                                    style={{ 
-                                        display: 'inline-block', 
-                                        border: '3px solid white', 
-                                        borderRadius: '50%', 
-                                        padding: '20px',
-                                        transition: 'all 0.3s ease',
-                                        lineHeight: '0',
-                                        backgroundColor: MAIN_COLOR, 
-                                        boxShadow: '0 0 0 10px rgba(255, 255, 255, 0.3)', 
-                                    }}
-                                >
-                                    <img 
-                                        src="./play.png" 
-                                        alt="Play" 
-                                        style={{ 
-                                            width: '20px', 
-                                            height: '20px',
-                                            filter: 'brightness(0) invert(1)', 
-                                        }} 
-                                    /> 
-                                </a>
-                            </div>
-                        </div>
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center'
+                }}>
+                    <div style={{ 
+                        padding: '40px', 
+                        borderRadius: '30px', 
+                        backdropFilter: 'blur(4px)',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        maxWidth: '800px',
+                        margin: '0 20px'
+                    }}>
+                        <h2 style={{ color: '#fff', fontSize: '3.5rem', fontWeight: '800', marginBottom: '20px' }}>
+                            Experience Our Atmosphere
+                        </h2>
+                        <p style={{ color: '#fff', fontSize: '1.2rem', opacity: 0.9 }}>
+                            Discover the perfect harmony of heritage and contemporary luxury.
+                        </p>
                     </div>
                 </div>
             </section>
-            {/* Video Section End */}
 
-            
-            {/* Gallery Section Begin (Sử dụng GalleryItemHover mới) */}
-            <section className="gallery-section spad" style={{ padding: '100px 0', backgroundColor: 'white' }}>
+            {/* Gallery Section: Modern Grid */}
+            <section style={{ padding: '120px 0', backgroundColor: '#fff' }}>
                 <div className="container">
-                    <div className="row">
-                        <div className="col-lg-12">
-                            <div className="section-title" style={{ textAlign: 'center', marginBottom: '50px' }}>
-                                <span style={{ 
-                                    color: MAIN_COLOR, 
-                                    textTransform: 'uppercase', 
-                                    fontWeight: '700', 
-                                    letterSpacing: '2px',
-                                    fontSize: '0.9rem',
-                                    marginBottom: '8px', 
-                                    display: 'block' 
-                                }}>
-                                    Our Gallery
-                                </span>
-                                <h2 style={{ 
-                                    fontWeight: '800', 
-                                    fontSize: '2.8rem',
-                                    color: '#222',
-                                }}>Discover Our Work</h2>
-                            </div>
-                        </div>
+                    <div className="text-center" style={{ marginBottom: '70px' }}>
+                        <span style={{ color: MAIN_COLOR, fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                            Our Gallery
+                        </span>
+                        <h2 style={{ fontSize: '3rem', fontWeight: '800', marginTop: '10px' }}>Capturing Moments</h2>
                     </div>
-                    <div className="row" style={{ gap: '30px 0' }}>
-                        <div className="col-lg-6">
-                            {/* Large Image 1 (Top Left) */}
-                            <GalleryItemHover 
-                                imgUrl={'./gallery/gallery-1.jpg'} 
-                                height={'450px'} 
-                                title={'Room Luxury'} 
-                                subtitle={'Highlighting the stylish and sophisticated interiors of our rooms'}
-                            />
 
-                            <div className="row" style={{ marginTop: '30px' }}>
-                                {/* Small Image 3 (Bottom Left - Row 1) */}
-                                <div className="col-sm-6">
-                                    <GalleryItemHover 
-                                        imgUrl={'./gallery/gallery-3.jpg'} 
-                                        height={'200px'} 
-                                        title={'Event Area'} 
-                                        subtitle={'Shows professional event areas'}
+                    <div className="row g-4">
+                        {/* Cột Trái: 1 Ảnh lớn trên, 2 ảnh nhỏ dưới */}
+                        <div className="col-lg-7">
+                            <div className="row g-4">
+                                <div className="col-12">
+                                    <GalleryCard 
+                                        img={`${publicPath}/gallery/gallery-1.jpg`} 
+                                        height="420px" 
+                                        title="Imperial Suites" 
+                                        sub="Sophisticated interiors designed for the ultimate comfort and relaxation."
                                     />
                                 </div>
-                                {/* Small Image 4 (Bottom Left - Row 2) */}
-                                <div className="col-sm-6">
-                                    <GalleryItemHover 
-                                        imgUrl={'./gallery/gallery-4.jpg'} 
-                                        height={'200px'} 
-                                        title={'Service Quality'} 
-                                        subtitle={'Focuses on service quality and hospitality'}
+                                <div className="col-md-6">
+                                    <GalleryCard 
+                                        img={`${publicPath}/gallery/gallery-3.jpg`} 
+                                        height="300px" 
+                                        title="Grand Ballroom" 
+                                    />
+                                </div>
+                                <div className="col-md-6">
+                                    <GalleryCard 
+                                        img={`${publicPath}/gallery/gallery-4.jpg`} 
+                                        height="300px" 
+                                        title="Signature Dining" 
                                     />
                                 </div>
                             </div>
                         </div>
-                        <div className="col-lg-6">
-                            {/* Extra Large Image 2 (Right) */}
-                            <GalleryItemHover 
-                                imgUrl={'./gallery/gallery-2.jpg'} 
-                                height={'700px'} 
-                                title={'Outdoor Amenities'} 
-                                subtitle={'Shows the relaxing outdoor amenities and perfect venues for weddings, meetings, and celebrations.'}
-                                isLarge={true}
+
+                        {/* Cột Phải: 1 Ảnh cực lớn */}
+                        <div className="col-lg-5">
+                            <GalleryCard 
+                                img={`${publicPath}/gallery/gallery-2.jpg`} 
+                                isLarge={true} 
+                                title="Infinity Pool" 
+                                sub="A breathtaking view of Paris from our rooftop oasis, perfect for summer days."
                             />
                         </div>
                     </div>
                 </div>
             </section>
-            {/* Gallery Section End */}
+
+            {/* Footer-like Branding */}
+            <section style={{ padding: '80px 0', textAlign: 'center', borderTop: '1px solid #eee' }}>
+                <div className="container">
+                    <h3 style={{ fontWeight: '300', fontStyle: 'italic', color: '#999' }}>"Luxury is in each detail."</h3>
+                </div>
+            </section>
         </div>
     );
 };

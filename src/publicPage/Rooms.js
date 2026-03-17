@@ -96,7 +96,7 @@ const Rooms = () => {
               <Card.Img
                 variant="top"
                 // SỬ DỤNG TRƯỜNG 'image' TỪ BACKEND
-                src={room.image || DEFAULT_PLACEHOLDER_URL} 
+                src={room.imageUrl || DEFAULT_PLACEHOLDER_URL} 
                 alt={room.name}
                 style={{
                   height: "240px",

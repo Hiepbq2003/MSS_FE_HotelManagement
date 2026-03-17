@@ -7,7 +7,7 @@ import Login from "../publicPage/Login/Login";
 import AboutUs from "../publicPage/AboutUs";
 import Contact from "../publicPage/Contact";
 import RoomTypeManagement from "../manager/RoomTypeManagement";
-import DashBoard from "../adminArea/DashBoard";
+import DashBoard from "../admin/DashBoard";
 import Manager from "../manager/Manager";
 import Profile from "../publicPage/Profile";
 import CheckInPage from "../staffPage/CheckInPage";
@@ -49,8 +49,8 @@ function Routers() {
 
         {/* ROUTE DÀNH CHO MANAGER */}
         <Route path="/manager" element={<Manager />}>
+          <Route index element={<DashBoard />} />
           <Route path="dashboard" element={<ManagerDashboard />} />
-          <Route path="dashboard" element={<DashBoard />} />
           <Route path="room-types" element={<RoomTypeManagement />} />
           <Route path="service-management" element={<ServiceManagement />} />
           <Route path="room-management" element={<RoomManagement />} />

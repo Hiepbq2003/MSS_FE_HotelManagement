@@ -85,12 +85,12 @@ const Home = () => {
         return ROOM_IMAGES[index % ROOM_IMAGES.length];
     };
 
-    const formatPrice = (price) => {
-        return new Intl.NumberFormat('vi-VN', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(price);
-    };
+   const formatPrice = (price) => {
+    return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+    }).format(price);
+};
 
     return (
         <>
