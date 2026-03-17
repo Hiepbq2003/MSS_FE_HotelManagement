@@ -58,7 +58,7 @@ const ServiceManagement = () => {
         setError(null);
         try {
             // Lấy toàn bộ danh sách Services từ Backend
-            const response = await api.get("/service");
+            const response = await api.get("/services");
             const data = response; 
             
             // ✅ ĐÃ SỬA: Bỏ logic lọc ở FE, tin tưởng Backend chỉ trả về data của Hotel ID=1

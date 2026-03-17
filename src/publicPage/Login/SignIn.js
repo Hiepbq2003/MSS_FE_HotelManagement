@@ -13,11 +13,10 @@ function SignInForm({ onLoginSuccess, onForgotPasswordClick }) {
   };
 
   const handleLoginSuccess = (loginData) => {
-    // Trích xuất dữ liệu từ phản hồi thành công của server
+
     const { token, role, email, fullName, phone, id, userId: staffId } = loginData; 
     const finalId = id || staffId || "";
     
-    // Lưu thông tin mới vào storage
     localStorage.setItem("userId", finalId);     
     localStorage.setItem("token", token);
     localStorage.setItem("userRole", role);
@@ -35,24 +34,22 @@ function SignInForm({ onLoginSuccess, onForgotPasswordClick }) {
     setError(null);
     setLoading(true);
 
-    // BƯỚC 1: Xóa sạch dữ liệu cũ để tránh lỗi 403 Forbidden do Token cũ gây ra
     localStorage.clear(); 
   
-    // BƯỚC 2: Cấu hình Payload với key là 'username' để khớp với Backend
     const loginPayload = {
-      username: state.email, // Sử dụng giá trị từ input email nhưng gửi đi dưới tên 'username'
+      username: state.email,
       password: state.password,
     };
   
     try {
-      // 3. Thử đăng nhập quyền Staff trước
+      // đăng nhập quyền Staff trước
       console.log("Đang thử đăng nhập Staff...");
       const response = await api.post("/auth/staff/login", loginPayload);
       console.log("✅ Đăng nhập Staff thành công.");
       handleLoginSuccess(response);
 
     } catch (errStaff) {
-      // 4. Nếu Staff lỗi, tự động thử sang User
+      // Nếu Staff lỗi, tự động thử sang User
       console.warn("Staff login không khớp, đang thử đăng nhập User...");
       
       try {
@@ -61,14 +58,14 @@ function SignInForm({ onLoginSuccess, onForgotPasswordClick }) {
         handleLoginSuccess(response);
 
       } catch (errUser) {
-        // Lấy thông tin lỗi thực tế từ JSON trả về của server (ví dụ: "Sai tài khoản hoặc mật khẩu!")
+
         console.error("Lỗi đăng nhập:", errUser);
         const errorMessage = errUser?.message || "Sai tài khoản hoặc mật khẩu!";
         setError(errorMessage);
       }
     } finally {
       setLoading(false);
-      // Xóa mật khẩu sau khi xử lý xong để bảo mật
+    
       setState(prev => ({ ...prev, password: "" }));
     }
   };

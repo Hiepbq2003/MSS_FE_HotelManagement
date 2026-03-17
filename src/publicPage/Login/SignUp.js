@@ -27,7 +27,7 @@ function SignUpForm({ onRegisterSuccess }) {
                 phone: state.phone || "" 
             };
 
-            await api.post("/auth/register", requestBody);
+            await api.post("/customers", requestBody);
             
             setState({ name: "", email: "", password: "", phone: "" });
             

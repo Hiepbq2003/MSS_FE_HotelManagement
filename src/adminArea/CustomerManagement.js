@@ -13,14 +13,8 @@ import {
 } from 'react-bootstrap'; 
 import api from '../api/apiConfig'; 
 
-// --- Constants ---
 const ALLOWED_ROLES = ['ADMIN', 'MANAGER']; 
 const STATUS_OPTIONS = ['active', 'inactive', 'blocked'];
-
-// =================================================================================
-// 1. CREATE CUSTOMER MODAL (Thêm mới khách hàng)
-// Cập nhật validation: Mật khẩu chỉ cần 6 ký tự số
-// =================================================================================
 
 function CreateCustomerModal({ show, handleClose, handleCreate }) {
     const [formData, setFormData] = useState({
@@ -277,9 +271,8 @@ function CustomerManagement() {
     const [error, setError] = useState(null);
     const currentUserRole = localStorage.getItem('userRole'); 
     
-    // States cho Modals
     const [showCreateModal, setShowCreateModal] = useState(false);
-    // Chỉ cần 1 Modal Edit duy nhất
+
     const [showEditModal, setShowEditModal] = useState(false); 
     const [selectedCustomer, setSelectedCustomer] = useState(null);
 
@@ -295,8 +288,7 @@ function CustomerManagement() {
     const fetchCustomers = async () => {
         try {
             setLoading(true);
-            const response = await api.get('/customer'); 
-            // Đảm bảo response là mảng, sử dụng response.data nếu dùng axios, hoặc response nếu apiConfig đã handle
+            const response = await api.get('/customers'); 
             setCustomers(response?.data || response || []); 
             setError(null);
         } catch (err) {
@@ -335,11 +327,10 @@ function CustomerManagement() {
         setSelectedCustomer(null);
     };
     
-    // --- CRUD Logic (CREATE) ---
+
     const handleCreateCustomer = async ({ fullName, email, phone, password }) => {
         try {
-            // API call: POST /api/customer
-            await api.post('/customer', { fullName, email, phone, password });
+            await api.post('/customers', { fullName, email, phone, password });
             
             alert(`Tạo tài khoản ${fullName} thành công!`);
             handleCloseAllModals();
@@ -349,19 +340,16 @@ function CustomerManagement() {
                                 ? typeof err.response.data === 'string' ? err.response.data : "Lỗi server hoặc email đã tồn tại."
                                 : "Lỗi không xác định khi tạo khách hàng.";
             alert(`Lỗi khi tạo khách hàng: ${errorMessage}`);
-            // Không fetchCustomers ở đây nếu chỉ là lỗi validate/conflict để người dùng xem lại form
         }
     };
 
     // --- CRUD Logic (EDIT Details + Status) ---
     const handleSaveDetailsAndStatus = async (customerId, fullName, phone, status) => {
-        // 1. Cập nhật Tên và SĐT (PUT /api/customer/{id})
         try {
-            await api.put(`/customer/${customerId}`, { fullName, phone });
+            await api.put(`/customers/${customerId}`, { fullName, phone });
             
-            // 2. Cập nhật Trạng thái (PUT /api/customer/{id}/status)
             if (selectedCustomer.status !== status) {
-                 await api.put(`/customer/${customerId}/status`, { newStatus: status });
+                 await api.put(`/customers/${customerId}/status`, { newStatus: status });
             }
             
             alert(`Cập nhật thông tin và trạng thái cho ID ${customerId} thành công!`);
@@ -386,7 +374,7 @@ function CustomerManagement() {
         if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản khách hàng: ${fullName} (ID: ${customerId})?`)) {
             try {
                 // API call: DELETE /api/customer/{id}
-                await api.delete(`/customer/${customerId}`); 
+                await api.delete(`/customers/${customerId}`); 
                 alert(`Xóa khách hàng ${fullName} thành công!`);
                 fetchCustomers();
             } catch (err) {
@@ -398,7 +386,6 @@ function CustomerManagement() {
         }
     };
     
-    // --- Helper cho Status Badge ---
     const getStatusVariant = (status) => {
         switch (status?.toLowerCase()) {
             case 'active': return 'success';
@@ -408,7 +395,6 @@ function CustomerManagement() {
         }
     }
 
-    // --- Render Logic ---
     if (loading) {
         return (
             <Container className="mt-5 text-center">
@@ -441,7 +427,7 @@ function CustomerManagement() {
             {!error && (
                 <Row className="mb-3">
                     <Col className="d-flex justify-content-between">
-                        {/* Nút Thêm Mới */}
+            
                         <Button 
                             variant="primary" 
                             onClick={handleShowCreateModal} 
