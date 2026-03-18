@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Container, Row, Col, Form, Button, Alert, Spinner } from "react-bootstrap";
+import { Container, Row, Col, Form, Button, Alert, Spinner, Card } from "react-bootstrap";
 import { useParams, useNavigate } from "react-router-dom";
 import BookingServices from '../components/BookingServices';
 import BookingServicesList from '../components/BookingServicesList';
@@ -23,6 +23,8 @@ const BookingPage = () => {
   const [servicesUpdated, setServicesUpdated] = useState(false);
   const [deposit, setDeposit] = useState(0);
   const [nights, setNights] = useState(0);
+
+  const DEFAULT_IMAGE_URL = "https://via.placeholder.com/1200x600?text=Room+Luxury+Image";
 
   const [form, setForm] = useState({
     guestName: localStorage.getItem("fullName") || "",
@@ -107,8 +109,8 @@ const BookingPage = () => {
       const nightsCount = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
       setNights(nightsCount);
       
-      // Tính tổng tiền và tiền cọc 20%
-      const totalAmount = room.basePrice * nightsCount * 23000 * roomsNeeded;
+      // Tính tổng tiền (Đã bỏ nhân 23000) và tiền cọc 20%
+      const totalAmount = room.basePrice * nightsCount * roomsNeeded;
       const depositAmount = totalAmount * 0.2;
       setDeposit(depositAmount);
     }
@@ -184,72 +186,38 @@ const BookingPage = () => {
       };
   
       console.log("📤 STEP 1: Booking Request Body:", JSON.stringify(body, null, 2));
-      console.log(`📤 STEP 1: Cần ${roomAllocations.length} phòng cho ${form.adultCount} người lớn và ${form.childCount} trẻ em`);
   
       // 1. Đặt phòng
-      console.log("📤 STEP 1: Sending booking request to /bookings...");
       const response = await api.post("/bookings", body);
-      
-      console.log("📥 STEP 1: Raw booking response:", response);
-      
       const responseData = response?.data || response;
-      console.log("📥 STEP 1: Booking response data:", responseData);
   
       if (typeof responseData !== 'object' || responseData === null) {
-        console.error("❌ STEP 1: Invalid response format:", responseData);
         throw new Error("Server trả về dữ liệu không hợp lệ");
       }
   
       const reservationId = responseData?.reservationId;
       const reservationCode = responseData?.reservationCode;
   
-      console.log("📥 STEP 1: Extracted - reservationId:", reservationId, "reservationCode:", reservationCode);
-  
       if (!reservationId) {
-        console.error("❌ STEP 1: Missing reservationId. Available fields:", Object.keys(responseData));
-        console.error("❌ STEP 1: Full response data:", JSON.stringify(responseData, null, 2));
         throw new Error("Không lấy được reservationId từ server");
       }
   
       setCurrentReservationId(reservationId);
   
       // 2. Tạo thanh toán VNPay với tiền cọc 20%
-      console.log("📤 STEP 2: Sending payment request to /payments/create-vnpay with payload:", { reservationId });
-      console.log("📤 STEP 2: Full URL being called:", `${api.defaults?.baseURL || 'http://localhost:8000/api'}/payments/create-vnpay`);
-      
       let paymentResponse;
       try {
         paymentResponse = await api.post("/payments/create-vnpay", {
           reservationId: reservationId
         });
-        console.log("📥 STEP 2: Raw payment response:", paymentResponse);
       } catch (paymentError) {
-        console.error("❌ STEP 2: Payment API call failed:", paymentError);
-        console.error("❌ STEP 2: Payment error config:", paymentError.config);
-        console.error("❌ STEP 2: Payment error response:", paymentError.response);
-        console.error("❌ STEP 2: Payment error request:", paymentError.request);
         throw paymentError;
       }
       
-      console.log("📥 STEP 2: Payment response status:", paymentResponse?.status);
-      console.log("📥 STEP 2: Payment response headers:", paymentResponse?.headers);
-      console.log("📥 STEP 2: Payment response data:", paymentResponse?.data);
-      
-      // Kiểm tra cấu trúc response
       const paymentData = paymentResponse?.data || paymentResponse;
-      console.log("📥 STEP 2: Payment data structure:", {
-        hasData: !!paymentResponse?.data,
-        dataKeys: paymentResponse?.data ? Object.keys(paymentResponse.data) : [],
-        responseKeys: paymentResponse ? Object.keys(paymentResponse) : [],
-        paymentDataKeys: paymentData ? Object.keys(paymentData) : []
-      });
-      
       const vnpUrl = paymentData?.vnpayUrl || paymentResponse?.vnpayUrl;
-      console.log("🔗 STEP 2: Extracted VNPay URL:", vnpUrl);
       
       if (!vnpUrl) {
-        console.error("❌ STEP 2: No VNPay URL found in response");
-        console.error("❌ STEP 2: Full payment response:", JSON.stringify(paymentResponse, null, 2));
         throw new Error("Không tạo được VNPay URL");
       }
   
@@ -275,27 +243,13 @@ const BookingPage = () => {
       );
   
       // Chờ 1 giây để hiển thị thông báo
-      console.log("🚀 STEP 3: Waiting 1 second before redirect...");
       await new Promise(resolve => setTimeout(resolve, 1000));
   
       // Chuyển hướng đến VNPay
-      console.log("🚀 STEP 3: Redirecting to VNPay URL:", vnpUrl);
       window.location.href = vnpUrl;
   
     } catch (err) {
       console.error("❌ FINAL: Booking error:", err);
-      
-      // Log chi tiết lỗi
-      if (err.response) {
-        console.error("❌ FINAL: Error response status:", err.response.status);
-        console.error("❌ FINAL: Error response data:", err.response.data);
-        console.error("❌ FINAL: Error response headers:", err.response.headers);
-      } else if (err.request) {
-        console.error("❌ FINAL: No response received. Request:", err.request);
-      } else {
-        console.error("❌ FINAL: Error message:", err.message);
-      }
-      
       let errorMessage = "Lỗi không xác định";
       
       if (err.response) {
@@ -313,7 +267,6 @@ const BookingPage = () => {
   };
 
   const handleServicesAdded = (services) => {
-    console.log('Services added:', services);
     setServicesUpdated(prev => !prev);
     setShowServicesList(true);
   };
@@ -342,9 +295,21 @@ const BookingPage = () => {
     <Container style={{ paddingTop: 40, paddingBottom: 40 }}>
       <Row>
         <Col md={7}>
+          {/* BỔ SUNG HÌNH ẢNH Ở ĐÂY */}
+          <Card className="border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+            <img 
+                className="d-block w-100" 
+                src={room.imageUrl || DEFAULT_IMAGE_URL}
+                style={{ height: "400px", objectFit: "cover" }} 
+                alt={room.name} 
+            />
+          </Card>
+
           <h3 className="fw-bold">{room.name}</h3>
           <p style={{ color: "#666" }}>{room.description}</p>
-          <p><strong>Giá:</strong> {(room.basePrice * 23000).toLocaleString()} VNĐ/đêm</p>
+          
+          {/* Xóa * 23000 ở giá cơ bản */}
+          <p><strong>Giá:</strong> {room.basePrice?.toLocaleString()} VNĐ/đêm</p>
           <p><strong>Sức chứa:</strong> {room.capacity} người lớn (trẻ em tính 0.5)</p>
           <p><strong>Giường:</strong> {room.bedInfo}</p>
 
@@ -367,7 +332,8 @@ const BookingPage = () => {
           
           {nights > 0 && (
             <Alert variant="success">
-              <strong>Tổng tiền phòng:</strong> {(room.basePrice * nights * 23000 * roomAllocations.length).toLocaleString()} VNĐ<br/>
+              {/* Xóa * 23000 ở tổng tiền */}
+              <strong>Tổng tiền phòng:</strong> {(room.basePrice * nights * roomAllocations.length).toLocaleString()} VNĐ<br/>
               <strong>Tiền cọc 20%:</strong> <span className="text-danger fw-bold">{deposit.toLocaleString()} VNĐ</span>
             </Alert>
           )}
@@ -545,7 +511,8 @@ const BookingPage = () => {
               <div className="mt-3 p-3 bg-dark rounded">
                 <div className="d-flex justify-content-between mb-2">
                   <span>Tổng tiền phòng:</span>
-                  <span className="fw-bold">{(room.basePrice * nights * 23000 * roomAllocations.length).toLocaleString()} VNĐ</span>
+                  {/* Xóa * 23000 ở box tổng */}
+                  <span className="fw-bold">{(room.basePrice * nights * roomAllocations.length).toLocaleString()} VNĐ</span>
                 </div>
                 <div className="d-flex justify-content-between mb-2">
                   <span>Tiền cọc (20%):</span>
