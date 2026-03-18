@@ -63,6 +63,9 @@ const Header = () => {
                         <Dropdown.Item as={Link} to="/profile">
                             Profile
                         </Dropdown.Item>
+                        <Dropdown.Item as={Link} to="/my-bookings">
+                            MyBookings
+                        </Dropdown.Item>
                         <Dropdown.Item onClick={handleLogout}>
                             Logout
                         </Dropdown.Item>

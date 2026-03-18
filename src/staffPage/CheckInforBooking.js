@@ -25,7 +25,7 @@ const CheckInforBooking = () => {
   const [checkInForm, setCheckInForm] = useState({
     reservationCode: "",
     documentType: "CCCD",
-    documentNumber: "000000", // 🆕 Đặt giá trị mặc định
+    documentNumber: "000000",
   });
 
   // 🎯 State cho reception info
@@ -67,7 +67,8 @@ const CheckInforBooking = () => {
   const fetchReservations = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/checkIn/reservations");
+      // SỬA: đổi từ checkIn thành checkin (chữ thường)
+      const res = await api.get("/bookings/checkin/reservations");
       setReservations(res || []);
       setFilteredReservations(res || []);
       setError(null);
@@ -113,7 +114,7 @@ const CheckInforBooking = () => {
     setCheckInForm({
       reservationCode: reservation.reservationCode,
       documentType: "CCCD",
-      documentNumber: "000000" // 🆕 Luôn đặt giá trị mặc định
+      documentNumber: "000000"
     });
     setSelectedReservation(reservation);
     setError(null);
@@ -127,7 +128,6 @@ const CheckInforBooking = () => {
         return;
       }
 
-      // 🆕 Không cần kiểm tra document number nữa vì đã có giá trị mặc định
       if (!checkInForm.documentNumber.trim()) {
         setCheckInForm(prev => ({ ...prev, documentNumber: "000000" }));
       }
@@ -157,7 +157,7 @@ const CheckInforBooking = () => {
   };
 
   // 🔹 Xử lý check-in
-const handleCheckIn = async () => {
+  const handleCheckIn = async () => {
     try {
       if (!selectedReservation) {
         setError("❌ Vui lòng chọn reservation trước khi check-in");
@@ -192,10 +192,11 @@ const handleCheckIn = async () => {
         throw new Error("Receptionist ID không hợp lệ: " + receptionistId);
       }
   
-      // 🎯 Gọi API check-in với error handling chi tiết
+      // 🎯 Gọi API check-in với endpoint đúng
       try {
+        // SỬA: dùng endpoint đúng /checkin/reservation/{id}
         const response = await api.post(
-          `/checkIn/reservation/${reservationId}?receptionistId=${receptionistId}`
+          `/bookings/checkin/reservation/${reservationId}?receptionistId=${receptionistId}`
         );
   
         console.log("✅ Check-in response:", response);
@@ -342,7 +343,7 @@ const handleCheckIn = async () => {
                 <th>Ngày đến</th>
                 <th>Ngày đi</th>
                 <th>Trạng thái</th>
-                <th>🆕 Thao tác</th>
+                <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>

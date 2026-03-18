@@ -27,6 +27,8 @@ import HouseKeepingDashboard from "../housekeepingPage/HouseKeepingDashboard";
 import HousekeepingManagement from "../admin/HousekeepingManagement";
 import VoucherManagement from "../admin/VoucherManagement";
 import ManagerDashboard from '../manager/ManagerDashboard';
+import MyBookingsPage from '../publicPage/MyBookingsPage';
+import BookingDetailPage from '../publicPage/BookingDetailPage';
 function Routers() {
   return (
     <HashRouter>
@@ -42,6 +44,8 @@ function Routers() {
           <Route path="booking/:id" element={<BookingPage />}/>
           <Route path="payment-result" element={<PaymentResult />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="my-bookings" element={<MyBookingsPage/>} />
+          <Route path="booking_detail/:id" element={<BookingDetailPage/>} />
         </Route>
         
         {/* Các route riêng */}

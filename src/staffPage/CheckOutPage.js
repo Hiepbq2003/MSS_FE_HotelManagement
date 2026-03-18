@@ -26,13 +26,15 @@ const CheckOutPage = () => {
   const fetchCheckedInGuests = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/checkIn/today");
+      // SỬA: dùng endpoint đúng /checkin/today (chữ thường)
+      const res = await api.get("/bookings/checkin/current-guests");
       
       // 🎯 Lọc chỉ những khách đang checked_in
       const activeCheckIns = res.filter(item => 
-        item.status === "checked_in" || 
-        item.status === "CHECKED_IN" ||
-        !item.status // Nếu không có status, mặc định là đang ở
+        item.status === "CHECKED_IN" || 
+        item.status === "checked_in" ||
+        item.status === "CONFIRMED" ||
+        (item.status && item.status.toString().toUpperCase() === "CHECKED_IN")
       );
       
       setCheckIns(activeCheckIns);
@@ -62,23 +64,27 @@ const CheckOutPage = () => {
     try {
       setLoading(true);
       
-      // 🎯 Gọi API checkout - chỉ cần roomNumber theo backend
-      const payload = {
-        roomNumber: selectedGuest.roomNumber
-      };
+      // 🎯 Gọi API checkout với reservationId (từ backend)
+      const reservationId = selectedGuest.reservationId;
       
-      console.log("📤 Gửi request checkout:", payload);
+      if (!reservationId) {
+        throw new Error("Không tìm thấy mã đặt phòng");
+      }
       
-      const res = await api.post("/checkIn/checkout", payload);
+      console.log("📤 Gửi request checkout cho reservation:", reservationId);
+      
+      // SỬA: dùng endpoint /api/bookings/{id}/check-out từ BookingController
+      const res = await api.put(`/bookings/${reservationId}/check-out`);
+      
       console.log("✅ Checkout Response:", res);
 
       // 🎯 Hiển thị thông tin thanh toán nếu có
-      if (res.totalAmount) {
+      if (res.data?.message) {
         setCheckoutDetails({
           guestName: selectedGuest.guestName,
           roomNumber: selectedGuest.roomNumber,
-          totalAmount: res.totalAmount,
-          message: res.message
+          message: res.data.message,
+          reservationId: reservationId
         });
       }
 
@@ -94,7 +100,7 @@ const CheckOutPage = () => {
       
     } catch (err) {
       console.error("❌ Lỗi khi checkout:", err);
-      const errorMsg = err.response?.data?.error || err.message || "Không thể checkout";
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || "Không thể checkout";
       setError(`❌ Lỗi: ${errorMsg}`);
     } finally {
       setLoading(false);
@@ -111,13 +117,17 @@ const CheckOutPage = () => {
 
   // 🔹 Format trạng thái
   const getStatusBadge = (status) => {
-    switch (status?.toUpperCase()) {
+    const statusUpper = status?.toString().toUpperCase();
+    switch (statusUpper) {
       case "CHECKED_IN":
+      case "CONFIRMED":
         return <Badge bg="success">Đang ở</Badge>;
       case "CHECKED_OUT":
+      case "COMPLETED":
         return <Badge bg="secondary">Đã trả phòng</Badge>;
       case "BOOKED":
-        return <Badge bg="warning">Đã đặt</Badge>;
+      case "PENDING":
+        return <Badge bg="warning">Chờ nhận phòng</Badge>;
       default:
         return <Badge bg="info">Đang ở</Badge>;
     }
@@ -158,12 +168,12 @@ const CheckOutPage = () => {
       {/* Thông tin thanh toán sau checkout */}
       {checkoutDetails && (
         <Alert variant="info" className="mb-4">
-          <h6>💰 Thông tin thanh toán</h6>
+          <h6>✅ Thông tin trả phòng</h6>
           <hr />
           <p><strong>Khách hàng:</strong> {checkoutDetails.guestName}</p>
           <p><strong>Phòng:</strong> {checkoutDetails.roomNumber}</p>
-          <p><strong>Tổng tiền:</strong> <span className="text-success fw-bold">{formatCurrency(checkoutDetails.totalAmount)}</span></p>
-          <p><strong>Trạng thái:</strong> <Badge bg="success">Đã thanh toán</Badge></p>
+          <p><strong>Mã đặt phòng:</strong> {checkoutDetails.reservationId}</p>
+          <p><strong>Trạng thái:</strong> <Badge bg="success">Đã trả phòng</Badge></p>
         </Alert>
       )}
 
@@ -189,6 +199,7 @@ const CheckOutPage = () => {
               <thead className="table-light">
                 <tr>
                   <th>#</th>
+                  <th>Mã đặt phòng</th>
                   <th>Khách hàng</th>
                   <th>Phòng</th>
                   <th>Loại phòng</th>
@@ -200,8 +211,13 @@ const CheckOutPage = () => {
               </thead>
               <tbody>
                 {checkIns.map((guest, index) => (
-                  <tr key={index}>
+                  <tr key={guest.reservationId || index}>
                     <td><strong>{index + 1}</strong></td>
+                    <td>
+                      <Badge bg="outline-secondary">
+                        {guest.reservationCode || guest.reservationId}
+                      </Badge>
+                    </td>
                     <td>
                       <div>
                         <strong>{guest.guestName}</strong>
@@ -264,6 +280,7 @@ const CheckOutPage = () => {
               <p>Bạn có chắc muốn trả phòng cho khách hàng sau?</p>
               
               <div className="border p-3 rounded bg-light">
+                <p><strong>Mã đặt phòng:</strong> {selectedGuest.reservationCode || selectedGuest.reservationId}</p>
                 <p><strong>Khách hàng:</strong> {selectedGuest.guestName}</p>
                 <p><strong>Phòng:</strong> {selectedGuest.roomNumber}</p>
                 <p><strong>Loại phòng:</strong> {selectedGuest.roomType}</p>
@@ -273,8 +290,12 @@ const CheckOutPage = () => {
 
               <Alert variant="warning" className="mt-3">
                 <small>
-                  ⚠️ <strong>Lưu ý:</strong> Hệ thống sẽ tự động tính toán tổng số tiền 
-                  dựa trên thời gian lưu trú thực tế và chuyển trạng thái phòng thành "cần dọn dẹp".
+                  ⚠️ <strong>Lưu ý:</strong> Hệ thống sẽ tự động:
+                  <ul className="mt-2 mb-0">
+                    <li>Tính toán tổng số tiền dựa trên thời gian lưu trú thực tế</li>
+                    <li>Chuyển trạng thái phòng thành "cần dọn dẹp"</li>
+                    <li>Gửi yêu cầu dọn phòng đến bộ phận housekeeping</li>
+                  </ul>
                 </small>
               </Alert>
             </div>
