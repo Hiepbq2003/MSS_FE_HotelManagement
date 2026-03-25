@@ -210,7 +210,7 @@ const MyBookingsPage = () => {
                       <Button
                         variant="outline-primary"
                         size="sm"
-                        onClick={() => navigate(`/booking-detail/${booking.id}`)}
+                        onClick={() => navigate(`/booking_detail/${booking.id}`)}
                       >
                         <FaEye className="me-1" /> Chi tiết
                       </Button>

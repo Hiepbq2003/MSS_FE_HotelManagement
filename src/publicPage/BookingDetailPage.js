@@ -11,7 +11,11 @@ import {
   FaMoneyBillWave,
   FaConciergeBell,
   FaPrint,
-  FaDownload
+  FaDownload,
+  FaIdCard,
+  FaTicketAlt,
+  FaBed,
+  FaUsers
 } from "react-icons/fa";
 
 const BookingDetailPage = () => {
@@ -24,7 +28,7 @@ const BookingDetailPage = () => {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState("info");
+  const [totalServicePrice, setTotalServicePrice] = useState(0);
 
   const isLoggedIn = !!localStorage.getItem("token");
 
@@ -42,19 +46,28 @@ const BookingDetailPage = () => {
       
       // Lấy thông tin booking
       const bookingRes = await api.get(`/bookings/${id}`);
-      console.log("Booking detail:", bookingRes);
+      console.log("Booking detail response:", bookingRes);
       
       const bookingData = bookingRes?.data || bookingRes;
       setBooking(bookingData?.reservation || bookingData);
       setRooms(bookingData?.rooms || []);
       setGuests(bookingData?.guests || []);
       
-      // Lấy dịch vụ đã đặt (nếu có)
+      // Lấy dịch vụ đã đặt
       try {
         const servicesRes = await api.get(`/bookings/services/${id}`);
-        setServices(servicesRes?.data || []);
+        console.log("Services response:", servicesRes);
+        
+        const servicesData = servicesRes?.data || servicesRes;
+        setServices(servicesData || []);
+        
+        // Tính tổng tiền dịch vụ
+        const total = (servicesData || []).reduce((sum, s) => sum + (s.totalPrice || 0), 0);
+        setTotalServicePrice(total);
       } catch (err) {
         console.log("No services found for this booking");
+        setServices([]);
+        setTotalServicePrice(0);
       }
       
     } catch (err) {
@@ -68,13 +81,17 @@ const BookingDetailPage = () => {
   // Format ngày tháng
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleString('vi-VN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      return new Date(dateString).toLocaleString('vi-VN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return dateString;
+    }
   };
 
   // Format trạng thái
@@ -89,7 +106,21 @@ const BookingDetailPage = () => {
       case "CANCELLED":
         return <Badge bg="danger">Đã hủy</Badge>;
       default:
-        return <Badge bg="secondary">{status}</Badge>;
+        return <Badge bg="secondary">{status || "Không xác định"}</Badge>;
+    }
+  };
+
+  // Format trạng thái phòng
+  const getRoomStatusBadge = (status) => {
+    switch (status?.toUpperCase()) {
+      case "BOOKED":
+        return <Badge bg="info">Đã đặt</Badge>;
+      case "CHECKED_IN":
+        return <Badge bg="success">Đã nhận phòng</Badge>;
+      case "CHECKED_OUT":
+        return <Badge bg="secondary">Đã trả phòng</Badge>;
+      default:
+        return <Badge bg="secondary">{status || "Chưa xác định"}</Badge>;
     }
   };
 
@@ -121,10 +152,20 @@ const BookingDetailPage = () => {
   const checkOut = new Date(booking.expectedCheckOutDate);
   const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
 
-  // Tính tổng tiền dịch vụ
-  const totalServicePrice = services.reduce((sum, s) => sum + (s.totalPrice || 0), 0);
-  const totalRoomPrice = booking.totalAmount * 23000; // USD to VND
+  // Tính tổng tiền phòng (USD to VND)
+  const totalRoomPrice = (booking.totalAmount || 0) * 23000;
+  
+  // Tổng tiền sau khi đã tính giảm giá
+  const originalAmount = booking.originalAmount ? booking.originalAmount * 23000 : totalRoomPrice;
+  const weekendDiscountAmount = booking.weekendDiscountAmount ? booking.weekendDiscountAmount * 23000 : 0;
+  const voucherDiscountAmount = booking.discountAmount ? booking.discountAmount * 23000 : 0;
+  
+  // Grand total
   const grandTotal = totalRoomPrice + totalServicePrice;
+  const deposit = grandTotal * 0.2;
+  const remaining = grandTotal - deposit;
+  
+  const hasDiscount = booking.weekendDiscountApplied || booking.discountAmount > 0;
 
   return (
     <Container className="mt-4 mb-5">
@@ -154,7 +195,6 @@ const BookingDetailPage = () => {
         </Col>
       </Row>
 
-      {/* Thông tin cơ bản */}
       <Row>
         <Col md={8}>
           {/* Thông tin đặt phòng */}
@@ -174,17 +214,29 @@ const BookingDetailPage = () => {
                       <strong>{booking.reservationCode}</strong>
                     </ListGroup.Item>
                     <ListGroup.Item className="d-flex justify-content-between">
-                      <span className="text-muted">Trạng thái:</span>
-                      {getStatusBadge(booking.status)}
+                      <span className="text-muted">Mã khách hàng:</span>
+                      <strong>
+                        {booking.customerId ? (
+                          <span className="text-success">
+                            <FaIdCard className="me-1" /> KH-{booking.customerId}
+                          </span>
+                        ) : (
+                          <span className="text-muted">Khách vãng lai</span>
+                        )}
+                      </strong>
                     </ListGroup.Item>
                     <ListGroup.Item className="d-flex justify-content-between">
-                      <span className="text-muted">Ngày đặt:</span>
-                      <strong>{formatDate(booking.createdDate)}</strong>
+                      <span className="text-muted">Trạng thái:</span>
+                      {getStatusBadge(booking.status)}
                     </ListGroup.Item>
                   </ListGroup>
                 </Col>
                 <Col md={6}>
                   <ListGroup variant="flush">
+                    <ListGroup.Item className="d-flex justify-content-between">
+                      <span className="text-muted">Ngày đặt:</span>
+                      <strong>{formatDate(booking.createdDate)}</strong>
+                    </ListGroup.Item>
                     <ListGroup.Item className="d-flex justify-content-between">
                       <span className="text-muted">Nhận phòng:</span>
                       <strong>{formatDate(booking.expectedCheckInDate)}</strong>
@@ -193,11 +245,31 @@ const BookingDetailPage = () => {
                       <span className="text-muted">Trả phòng:</span>
                       <strong>{formatDate(booking.expectedCheckOutDate)}</strong>
                     </ListGroup.Item>
+                  </ListGroup>
+                </Col>
+              </Row>
+              <Row className="mt-3">
+                <Col md={6}>
+                  <ListGroup variant="flush">
                     <ListGroup.Item className="d-flex justify-content-between">
                       <span className="text-muted">Số đêm:</span>
                       <strong>{nights} đêm</strong>
                     </ListGroup.Item>
+                    <ListGroup.Item className="d-flex justify-content-between">
+                      <span className="text-muted">Số phòng:</span>
+                      <strong>{rooms.length} phòng</strong>
+                    </ListGroup.Item>
                   </ListGroup>
+                </Col>
+                <Col md={6}>
+                  {booking.voucherCode && (
+                    <ListGroup.Item className="d-flex justify-content-between">
+                      <span className="text-muted">Mã voucher:</span>
+                      <strong className="text-success">
+                        <FaTicketAlt className="me-1" /> {booking.voucherCode}
+                      </strong>
+                    </ListGroup.Item>
+                  )}
                 </Col>
               </Row>
               {booking.note && (
@@ -218,7 +290,7 @@ const BookingDetailPage = () => {
             </Card.Header>
             <Card.Body>
               {guests.length > 0 ? (
-                <Table bordered hover>
+                <Table bordered hover responsive>
                   <thead className="table-light">
                     <tr>
                       <th>Họ tên</th>
@@ -252,19 +324,20 @@ const BookingDetailPage = () => {
           <Card className="shadow-sm mb-4">
             <Card.Header className="bg-light">
               <h5 className="mb-0">
-                <FaHotel className="me-2 text-primary" />
+                <FaBed className="me-2 text-primary" />
                 Thông tin phòng
               </h5>
             </Card.Header>
             <Card.Body>
               {rooms.length > 0 ? (
-                <Table bordered hover>
+                <Table bordered hover responsive>
                   <thead className="table-light">
                     <tr>
+                      <th>#</th>
                       <th>Phòng</th>
                       <th>Loại phòng</th>
-                      <th>Người lớn</th>
-                      <th>Trẻ em</th>
+                      <th><FaUsers className="me-1" /> Người lớn</th>
+                      <th><FaUsers className="me-1" /> Trẻ em</th>
                       <th>Giá/đêm</th>
                       <th>Trạng thái</th>
                     </tr>
@@ -272,12 +345,13 @@ const BookingDetailPage = () => {
                   <tbody>
                     {rooms.map((room, idx) => (
                       <tr key={idx}>
+                        <td className="text-center">{idx + 1}</td>
                         <td><Badge bg="outline-primary">{room.roomNumber || `P${room.roomId}`}</Badge></td>
                         <td>Loại {room.roomTypeId}</td>
                         <td className="text-center">{room.adultCount || 0}</td>
                         <td className="text-center">{room.childCount || 0}</td>
                         <td className="text-end">{(room.nightlyPrice * 23000).toLocaleString()} VNĐ</td>
-                        <td>{getStatusBadge(room.status)}</td>
+                        <td>{getRoomStatusBadge(room.status)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -298,25 +372,33 @@ const BookingDetailPage = () => {
                 </h5>
               </Card.Header>
               <Card.Body>
-                <Table bordered hover>
+                <Table bordered hover responsive>
                   <thead className="table-light">
                     <tr>
+                      <th>#</th>
                       <th>Dịch vụ</th>
-                      <th>Số lượng</th>
-                      <th>Đơn giá</th>
-                      <th>Thành tiền</th>
+                      <th className="text-center">Số lượng</th>
+                      <th className="text-end">Đơn giá</th>
+                      <th className="text-end">Thành tiền</th>
                     </tr>
                   </thead>
                   <tbody>
                     {services.map((service, idx) => (
                       <tr key={idx}>
+                        <td className="text-center">{idx + 1}</td>
                         <td>{service.serviceName || `Dịch vụ ${service.serviceId}`}</td>
                         <td className="text-center">{service.quantity}</td>
                         <td className="text-end">{(service.unitPrice || 0).toLocaleString()} VNĐ</td>
-                        <td className="text-end fw-bold">{(service.totalPrice || 0).toLocaleString()} VNĐ</td>
+                        <td className="text-end fw-bold text-primary">{(service.totalPrice || 0).toLocaleString()} VNĐ</td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot className="table-light">
+                    <tr>
+                      <td colSpan="4" className="text-end fw-bold">Tổng dịch vụ:</td>
+                      <td className="text-end fw-bold text-danger">{totalServicePrice.toLocaleString()} VNĐ</td>
+                    </tr>
+                  </tfoot>
                 </Table>
               </Card.Body>
             </Card>
@@ -334,11 +416,37 @@ const BookingDetailPage = () => {
             </Card.Header>
             <Card.Body>
               <ListGroup variant="flush">
+                {/* Tiền phòng gốc */}
+                {hasDiscount && (
+                  <ListGroup.Item className="d-flex justify-content-between">
+                    <span className="text-muted">Tiền phòng gốc:</span>
+                    <span className="fw-bold">{originalAmount.toLocaleString()} VNĐ</span>
+                  </ListGroup.Item>
+                )}
+                
+                {/* Giảm giá cuối tuần */}
+                {booking.weekendDiscountApplied && booking.weekendDiscountAmount > 0 && (
+                  <ListGroup.Item className="d-flex justify-content-between text-success">
+                    <span>🎉 Giảm giá cuối tuần (10%):</span>
+                    <span>-{weekendDiscountAmount.toLocaleString()} VNĐ</span>
+                  </ListGroup.Item>
+                )}
+                
+                {/* Giảm giá voucher */}
+                {booking.discountAmount > 0 && (
+                  <ListGroup.Item className="d-flex justify-content-between text-success">
+                    <span><FaTicketAlt className="me-1" /> Giảm giá voucher:</span>
+                    <span>-{voucherDiscountAmount.toLocaleString()} VNĐ</span>
+                  </ListGroup.Item>
+                )}
+                
+                {/* Tiền phòng sau giảm giá */}
                 <ListGroup.Item className="d-flex justify-content-between">
                   <span className="text-muted">Tiền phòng ({nights} đêm):</span>
                   <span className="fw-bold">{totalRoomPrice.toLocaleString()} VNĐ</span>
                 </ListGroup.Item>
                 
+                {/* Dịch vụ */}
                 {services.length > 0 && (
                   <ListGroup.Item className="d-flex justify-content-between">
                     <span className="text-muted">Dịch vụ:</span>
@@ -346,19 +454,22 @@ const BookingDetailPage = () => {
                   </ListGroup.Item>
                 )}
                 
-                <ListGroup.Item className="d-flex justify-content-between border-top">
+                {/* Tổng cộng */}
+                <ListGroup.Item className="d-flex justify-content-between bg-light">
                   <span className="h6">Tổng cộng:</span>
                   <span className="h6 text-primary">{grandTotal.toLocaleString()} VNĐ</span>
                 </ListGroup.Item>
                 
+                {/* Đã thanh toán */}
                 <ListGroup.Item className="d-flex justify-content-between">
-                  <span className="text-muted">Đã thanh toán:</span>
-                  <span className="fw-bold text-success">{(grandTotal * 0.2).toLocaleString()} VNĐ</span>
+                  <span className="text-muted">Đã thanh toán (20%):</span>
+                  <span className="fw-bold text-success">{deposit.toLocaleString()} VNĐ</span>
                 </ListGroup.Item>
                 
+                {/* Còn lại */}
                 <ListGroup.Item className="d-flex justify-content-between">
                   <span className="text-muted">Còn lại:</span>
-                  <span className="fw-bold text-danger">{(grandTotal * 0.8).toLocaleString()} VNĐ</span>
+                  <span className="fw-bold text-danger">{remaining.toLocaleString()} VNĐ</span>
                 </ListGroup.Item>
               </ListGroup>
 

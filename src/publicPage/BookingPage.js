@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Container, Row, Col, Form, Button, Alert, Spinner, Card } from "react-bootstrap";
+import { Container, Row, Col, Form, Button, Alert, Spinner, Card, InputGroup, Modal,Badge } from "react-bootstrap";
 import { useParams, useNavigate } from "react-router-dom";
-import BookingServices from '../components/BookingServices';
 import BookingServicesList from '../components/BookingServicesList';
-import { FaConciergeBell } from 'react-icons/fa';
+import { FaConciergeBell, FaTicketAlt, FaCalendarWeek, FaPlus, FaShoppingCart } from 'react-icons/fa';
 import api from "../api/apiConfig";
 
 const BookingPage = () => {
@@ -17,12 +16,33 @@ const BookingPage = () => {
   const [success, setSuccess] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [roomAllocations, setRoomAllocations] = useState([]);
-  const [showServices, setShowServices] = useState(false);
+  const [showServicesModal, setShowServicesModal] = useState(false);
   const [currentReservationId, setCurrentReservationId] = useState(null);
   const [showServicesList, setShowServicesList] = useState(false);
   const [servicesUpdated, setServicesUpdated] = useState(false);
   const [deposit, setDeposit] = useState(0);
   const [nights, setNights] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [originalAmount, setOriginalAmount] = useState(0);
+  
+  // State cho dịch vụ tạm thời (chưa đặt phòng)
+  const [tempServices, setTempServices] = useState([]);
+  const [showTempServicesModal, setShowTempServicesModal] = useState(false);
+  const [availableServices, setAvailableServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(false);
+  
+  // State cho giảm giá cuối tuần
+  const [weekendDiscount, setWeekendDiscount] = useState(0);
+  const [weekendDiscountAmount, setWeekendDiscountAmount] = useState(0);
+  const [isWeekendBooking, setIsWeekendBooking] = useState(false);
+
+  // State cho voucher
+  const [voucherCode, setVoucherCode] = useState("");
+  const [voucherValidating, setVoucherValidating] = useState(false);
+  const [voucherApplied, setVoucherApplied] = useState(null);
+  const [voucherDiscount, setVoucherDiscount] = useState(0);
+  const [voucherMessage, setVoucherMessage] = useState("");
+  const [finalAmount, setFinalAmount] = useState(0);
 
   const DEFAULT_IMAGE_URL = "https://via.placeholder.com/1200x600?text=Room+Luxury+Image";
 
@@ -60,7 +80,33 @@ const BookingPage = () => {
     loadRoom();
   }, [id]);
 
-  // Tính toán phân bổ phòng và tiền cọc
+  // Load danh sách dịch vụ
+  useEffect(() => {
+    const loadServices = async () => {
+      if (!room) return;
+      try {
+        setLoadingServices(true);
+        const response = await api.get(`/services/hotel/${room.hotelId || 1}`);
+        const data = response?.data || response || [];
+        setAvailableServices(data);
+      } catch (err) {
+        console.error("Load services error:", err);
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+    loadServices();
+  }, [room]);
+
+  // Kiểm tra ngày check-in có phải cuối tuần không
+  const checkWeekendBooking = (checkInDate) => {
+    if (!checkInDate) return false;
+    const date = new Date(checkInDate);
+    const day = date.getDay();
+    return day === 5 || day === 6 || day === 0;
+  };
+
+  // Tính toán phân bổ phòng và tiền
   useEffect(() => {
     if (!room) return;
     
@@ -102,19 +148,142 @@ const BookingPage = () => {
     
     setRoomAllocations(allocations);
 
-    // Tính tiền cọc khi có checkInDate và checkOutDate
+    // Tính tiền khi có checkInDate và checkOutDate
     if (form.checkInDate && form.checkOutDate) {
       const checkIn = new Date(form.checkInDate);
       const checkOut = new Date(form.checkOutDate);
       const nightsCount = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
       setNights(nightsCount);
       
-      // Tính tổng tiền (Đã bỏ nhân 23000) và tiền cọc 20%
-      const totalAmount = room.basePrice * nightsCount * roomsNeeded;
-      const depositAmount = totalAmount * 0.2;
-      setDeposit(depositAmount);
+      const baseTotal = room.basePrice * nightsCount * roomsNeeded;
+      setOriginalAmount(baseTotal);
+      
+      // Kiểm tra giảm giá cuối tuần
+      const isWeekend = checkWeekendBooking(form.checkInDate);
+      setIsWeekendBooking(isWeekend);
+      
+      let afterWeekendDiscount = baseTotal;
+      let weekendDiscAmount = 0;
+      
+      if (isWeekend) {
+        weekendDiscAmount = baseTotal * 0.1;
+        afterWeekendDiscount = baseTotal - weekendDiscAmount;
+        setWeekendDiscountAmount(weekendDiscAmount);
+        setWeekendDiscount(10);
+      } else {
+        setWeekendDiscountAmount(0);
+        setWeekendDiscount(0);
+      }
+      
+      setTotalAmount(afterWeekendDiscount);
+      
+      // Tính sau voucher
+      if (voucherApplied) {
+        let discountAmount = 0;
+        if (voucherApplied.discountType === "PERCENTAGE") {
+          discountAmount = afterWeekendDiscount * (voucherApplied.discountValue / 100);
+        } else {
+          discountAmount = voucherApplied.discountValue;
+        }
+        setVoucherDiscount(discountAmount);
+        const final = afterWeekendDiscount - discountAmount;
+        setFinalAmount(final);
+        setDeposit(final * 0.2);
+      } else {
+        setFinalAmount(afterWeekendDiscount);
+        setDeposit(afterWeekendDiscount * 0.2);
+      }
     }
-  }, [form.adultCount, form.childCount, form.checkInDate, form.checkOutDate, room]);
+  }, [form.adultCount, form.childCount, form.checkInDate, form.checkOutDate, room, voucherApplied]);
+
+  // Tính tổng tiền dịch vụ tạm thời
+  const getTempServicesTotal = () => {
+    return tempServices.reduce((sum, s) => sum + (s.price * s.quantity), 0);
+  };
+
+  // Thêm dịch vụ tạm thời
+  const handleAddTempService = (service) => {
+    setTempServices(prev => {
+      const existing = prev.find(s => s.id === service.id);
+      if (existing) {
+        return prev.map(s => 
+          s.id === service.id 
+            ? { ...s, quantity: s.quantity + 1 }
+            : s
+        );
+      } else {
+        return [...prev, { ...service, quantity: 1 }];
+      }
+    });
+  };
+
+  // Xóa dịch vụ tạm thời
+  const handleRemoveTempService = (serviceId) => {
+    setTempServices(prev => prev.filter(s => s.id !== serviceId));
+  };
+
+  // Cập nhật số lượng dịch vụ tạm thời
+  const handleUpdateTempServiceQuantity = (serviceId, quantity) => {
+    if (quantity <= 0) {
+      handleRemoveTempService(serviceId);
+    } else {
+      setTempServices(prev => 
+        prev.map(s => s.id === serviceId ? { ...s, quantity: Math.max(1, quantity) } : s)
+      );
+    }
+  };
+
+  // Kiểm tra voucher
+  const handleApplyVoucher = async () => {
+    if (!voucherCode.trim()) {
+      setVoucherMessage("Vui lòng nhập mã voucher");
+      return;
+    }
+
+    if (!totalAmount || totalAmount === 0) {
+      setVoucherMessage("Vui lòng chọn ngày nhận/trả phòng trước");
+      return;
+    }
+
+    setVoucherValidating(true);
+    setVoucherMessage("");
+
+    try {
+      const response = await api.post("/vouchers/validate", {
+        code: voucherCode,
+        orderAmount: totalAmount
+      });
+
+      if (response.valid) {
+        setVoucherApplied({
+          code: voucherCode,
+          discountType: response.discountType,
+          discountValue: response.discountValue
+        });
+        setVoucherDiscount(response.discountAmount);
+        setVoucherMessage(response.message);
+      } else {
+        setVoucherApplied(null);
+        setVoucherDiscount(0);
+        setVoucherMessage(response.message);
+      }
+    } catch (err) {
+      console.error("Voucher validation error:", err);
+      setVoucherMessage("Lỗi kiểm tra voucher, vui lòng thử lại");
+      setVoucherApplied(null);
+      setVoucherDiscount(0);
+    } finally {
+      setVoucherValidating(false);
+    }
+  };
+
+  // Hủy áp dụng voucher
+  const handleRemoveVoucher = () => {
+    setVoucherApplied(null);
+    setVoucherCode("");
+    setVoucherDiscount(0);
+    setVoucherMessage("");
+  };
 
   const validateForm = () => {
     if (form.adultCount < 1) {
@@ -152,7 +321,6 @@ const BookingPage = () => {
     e.preventDefault();
     
     if (!validateForm()) {
-      setSubmitting(false);
       return;
     }
     
@@ -161,16 +329,19 @@ const BookingPage = () => {
     setSuccess("");
     
     try {
-      localStorage.setItem("fullName", form.guestName);
-      localStorage.setItem("email", form.email);
-      localStorage.setItem("phone", form.phone);
-  
+      const token = localStorage.getItem("token");
+      const customerId = localStorage.getItem("customerId") || localStorage.getItem("userId");
+      const customerEmail = localStorage.getItem("email");
+      const customerName = localStorage.getItem("fullName");
+      
       const body = {
         hotelId: 1,
         roomTypeId: room.id,
         expectedCheckInDate: form.checkInDate,
         expectedCheckOutDate: form.checkOutDate,
         note: form.notes,
+        voucherCode: voucherApplied ? voucherApplied.code : null,
+        customerId: customerId ? parseInt(customerId) : null,
         guest: {
           fullName: form.guestName,
           email: form.email,
@@ -182,12 +353,15 @@ const BookingPage = () => {
         rooms: roomAllocations.map(alloc => ({
           adultCount: alloc.adultCount,
           childCount: alloc.childCount
+        })),
+        services: tempServices.map(s => ({  // Thêm dịch vụ tạm thời vào request
+          serviceId: s.id,
+          quantity: s.quantity
         }))
       };
-  
-      console.log("📤 STEP 1: Booking Request Body:", JSON.stringify(body, null, 2));
-  
-      // 1. Đặt phòng
+    
+      console.log("📤 Booking Request Body:", JSON.stringify(body, null, 2));
+    
       const response = await api.post("/bookings", body);
       const responseData = response?.data || response;
   
@@ -204,11 +378,12 @@ const BookingPage = () => {
   
       setCurrentReservationId(reservationId);
   
-      // 2. Tạo thanh toán VNPay với tiền cọc 20%
+      // Tạo thanh toán VNPay
       let paymentResponse;
       try {
         paymentResponse = await api.post("/payments/create-vnpay", {
-          reservationId: reservationId
+          reservationId: reservationId,
+          amount: deposit
         });
       } catch (paymentError) {
         throw paymentError;
@@ -221,10 +396,25 @@ const BookingPage = () => {
         throw new Error("Không tạo được VNPay URL");
       }
   
-      setSuccess(
+      const successContent = (
         <div>
           <p className="fw-bold text-success">{responseData.message || "Đặt phòng thành công!"}</p>
           <p>Mã đặt phòng: <strong>{reservationCode}</strong></p>
+          {isWeekendBooking && (
+            <p className="text-info">
+              <FaCalendarWeek className="me-1" />
+              Áp dụng giảm giá cuối tuần: <strong>-{weekendDiscountAmount.toLocaleString()} VNĐ (10%)</strong>
+            </p>
+          )}
+          {voucherApplied && (
+            <p className="text-info">Đã áp dụng voucher: <strong>{voucherApplied.code}</strong> - Giảm {voucherDiscount.toLocaleString()} VNĐ</p>
+          )}
+          {tempServices.length > 0 && (
+            <p className="text-info">
+              <FaConciergeBell className="me-1" />
+              Đã thêm {tempServices.length} dịch vụ: <strong>{getTempServicesTotal().toLocaleString()} VNĐ</strong>
+            </p>
+          )}
           <p>
             {responseData.isLoggedIn 
               ? `Khách hàng: ${responseData.customerName || form.guestName}` 
@@ -236,20 +426,30 @@ const BookingPage = () => {
              Trẻ em: {responseData.totalChildren || form.childCount})
           </p>
           <p>
+            <strong>Thông tin giá:</strong><br/>
+            Tổng tiền phòng: {originalAmount.toLocaleString()} VNĐ<br/>
+            {tempServices.length > 0 && (
+              <>Dịch vụ: +{getTempServicesTotal().toLocaleString()} VNĐ<br/></>
+            )}
+            {isWeekendBooking && (
+              <>Giảm giá cuối tuần (10%): -{weekendDiscountAmount.toLocaleString()} VNĐ<br/></>
+            )}
+            {voucherApplied && (
+              <>Giảm giá voucher: -{voucherDiscount.toLocaleString()} VNĐ<br/></>
+            )}
+            <strong>Thành tiền: {(finalAmount + getTempServicesTotal()).toLocaleString()} VNĐ</strong><br/>
             Tiền cọc (20%): <strong className="text-warning">{deposit.toLocaleString()} VNĐ</strong>
           </p>
           <p>Đang chuyển sang cổng thanh toán VNPay...</p>
         </div>
       );
   
-      // Chờ 1 giây để hiển thị thông báo
+      setSuccess(successContent);
       await new Promise(resolve => setTimeout(resolve, 1000));
-  
-      // Chuyển hướng đến VNPay
       window.location.href = vnpUrl;
   
     } catch (err) {
-      console.error("❌ FINAL: Booking error:", err);
+      console.error("❌ Booking error:", err);
       let errorMessage = "Lỗi không xác định";
       
       if (err.response) {
@@ -266,7 +466,7 @@ const BookingPage = () => {
     }
   };
 
-  const handleServicesAdded = (services) => {
+  const handleServicesAdded = () => {
     setServicesUpdated(prev => !prev);
     setShowServicesList(true);
   };
@@ -295,7 +495,6 @@ const BookingPage = () => {
     <Container style={{ paddingTop: 40, paddingBottom: 40 }}>
       <Row>
         <Col md={7}>
-          {/* BỔ SUNG HÌNH ẢNH Ở ĐÂY */}
           <Card className="border-0 shadow-sm rounded-4 overflow-hidden mb-4">
             <img 
                 className="d-block w-100" 
@@ -308,7 +507,6 @@ const BookingPage = () => {
           <h3 className="fw-bold">{room.name}</h3>
           <p style={{ color: "#666" }}>{room.description}</p>
           
-          {/* Xóa * 23000 ở giá cơ bản */}
           <p><strong>Giá:</strong> {room.basePrice?.toLocaleString()} VNĐ/đêm</p>
           <p><strong>Sức chứa:</strong> {room.capacity} người lớn (trẻ em tính 0.5)</p>
           <p><strong>Giường:</strong> {room.bedInfo}</p>
@@ -332,8 +530,20 @@ const BookingPage = () => {
           
           {nights > 0 && (
             <Alert variant="success">
-              {/* Xóa * 23000 ở tổng tiền */}
-              <strong>Tổng tiền phòng:</strong> {(room.basePrice * nights * roomAllocations.length).toLocaleString()} VNĐ<br/>
+              <strong>Thông tin giá:</strong><br/>
+              Tổng tiền phòng: <strong>{originalAmount.toLocaleString()} VNĐ</strong><br/>
+              {tempServices.length > 0 && (
+                <>Dịch vụ: +<strong>{getTempServicesTotal().toLocaleString()} VNĐ</strong><br/></>
+              )}
+              {isWeekendBooking && (
+                <span className="text-success">
+                  🎉 Giảm giá cuối tuần (10%): <strong>-{weekendDiscountAmount.toLocaleString()} VNĐ</strong><br/>
+                </span>
+              )}
+              {voucherApplied && (
+                <>Giảm giá voucher: <strong className="text-danger">-{voucherDiscount.toLocaleString()} VNĐ</strong><br/></>
+              )}
+              <strong>Thành tiền: {(finalAmount + getTempServicesTotal()).toLocaleString()} VNĐ</strong><br/>
               <strong>Tiền cọc 20%:</strong> <span className="text-danger fw-bold">{deposit.toLocaleString()} VNĐ</span>
             </Alert>
           )}
@@ -347,6 +557,7 @@ const BookingPage = () => {
             {success && <Alert variant="success">{success}</Alert>}
 
             <Form onSubmit={handleSubmit}>
+              {/* Các form fields giữ nguyên */}
               <h5 className="text-info fw-bold mb-3">Thông tin người đặt</h5>
               
               <Form.Group className="mb-3">
@@ -438,6 +649,11 @@ const BookingPage = () => {
                       min={new Date().toISOString().split('T')[0]}
                       required 
                     />
+                    {isWeekendBooking && form.checkInDate && (
+                      <Form.Text className="text-success">
+                        🎉 Đặt phòng cuối tuần được giảm 10%!
+                      </Form.Text>
+                    )}
                   </Form.Group>
                 </Col>
                 <Col>
@@ -490,6 +706,116 @@ const BookingPage = () => {
                 </Col>
               </Row>
 
+              {/* Nút thêm dịch vụ */}
+              <Button
+                variant="outline-info"
+                className="w-100 fw-bold mb-3"
+                onClick={() => setShowTempServicesModal(true)}
+                disabled={loadingServices}
+              >
+                <FaPlus className="me-2" />
+                {loadingServices ? "Đang tải dịch vụ..." : "Thêm dịch vụ"}
+              </Button>
+
+              {/* Hiển thị dịch vụ đã chọn tạm thời */}
+              {tempServices.length > 0 && (
+                <div className="mb-3 p-3 bg-dark rounded">
+                  <h6 className="text-info mb-2">
+                    <FaShoppingCart className="me-2" />
+                    Dịch vụ đã chọn ({tempServices.length})
+                  </h6>
+                  {tempServices.map(service => (
+                    <div key={service.id} className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary">
+                      <div>
+                        <span>{service.name}</span>
+                        <br />
+                        <small className="text-muted">{service.price.toLocaleString()} VNĐ x {service.quantity}</small>
+                      </div>
+                      <div className="d-flex align-items-center">
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          className="me-2"
+                          onClick={() => handleUpdateTempServiceQuantity(service.id, service.quantity - 1)}
+                        >
+                          -
+                        </Button>
+                        <span className="mx-2">{service.quantity}</span>
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          className="me-2"
+                          onClick={() => handleUpdateTempServiceQuantity(service.id, service.quantity + 1)}
+                        >
+                          +
+                        </Button>
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => handleRemoveTempService(service.id)}
+                        >
+                          Xóa
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="d-flex justify-content-between mt-2 pt-2 border-top">
+                    <strong>Tổng dịch vụ:</strong>
+                    <strong className="text-warning">{getTempServicesTotal().toLocaleString()} VNĐ</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Voucher Section */}
+              <div className="mt-3 mb-3 p-3 bg-dark rounded">
+                <div className="d-flex align-items-center mb-2">
+                  <FaTicketAlt className="text-warning me-2" />
+                  <h6 className="text-info mb-0">Mã giảm giá</h6>
+                </div>
+                
+                {!voucherApplied ? (
+                  <InputGroup>
+                    <Form.Control
+                      type="text"
+                      placeholder="Nhập mã voucher"
+                      value={voucherCode}
+                      onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                      disabled={voucherValidating}
+                    />
+                    <Button
+                      variant="outline-warning"
+                      onClick={handleApplyVoucher}
+                      disabled={voucherValidating}
+                    >
+                      {voucherValidating ? <Spinner size="sm" /> : "Áp dụng"}
+                    </Button>
+                  </InputGroup>
+                ) : (
+                  <div className="d-flex justify-content-between align-items-center bg-success bg-opacity-25 p-2 rounded">
+                    <div>
+                      <span className="text-warning fw-bold">{voucherApplied.code}</span>
+                      <small className="text-light d-block">
+                        Giảm {voucherApplied.discountType === "PERCENTAGE" 
+                          ? `${voucherApplied.discountValue}%` 
+                          : `${voucherApplied.discountValue.toLocaleString()} VNĐ`}
+                      </small>
+                    </div>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      onClick={handleRemoveVoucher}
+                    >
+                      Xóa
+                    </Button>
+                  </div>
+                )}
+                {voucherMessage && (
+                  <Form.Text className={voucherApplied ? "text-success" : "text-warning"}>
+                    {voucherMessage}
+                  </Form.Text>
+                )}
+              </div>
+
               <Form.Group className="mb-3">
                 <Form.Label>Ghi chú</Form.Label>
                 <Form.Control 
@@ -511,8 +837,29 @@ const BookingPage = () => {
               <div className="mt-3 p-3 bg-dark rounded">
                 <div className="d-flex justify-content-between mb-2">
                   <span>Tổng tiền phòng:</span>
-                  {/* Xóa * 23000 ở box tổng */}
-                  <span className="fw-bold">{(room.basePrice * nights * roomAllocations.length).toLocaleString()} VNĐ</span>
+                  <span className="fw-bold">{originalAmount.toLocaleString()} VNĐ</span>
+                </div>
+                {tempServices.length > 0 && (
+                  <div className="d-flex justify-content-between mb-2 text-info">
+                    <span>Dịch vụ:</span>
+                    <span>+{getTempServicesTotal().toLocaleString()} VNĐ</span>
+                  </div>
+                )}
+                {isWeekendBooking && (
+                  <div className="d-flex justify-content-between mb-2 text-success">
+                    <span>Giảm giá cuối tuần (10%):</span>
+                    <span>-{weekendDiscountAmount.toLocaleString()} VNĐ</span>
+                  </div>
+                )}
+                {voucherApplied && (
+                  <div className="d-flex justify-content-between mb-2 text-success">
+                    <span>Giảm giá voucher:</span>
+                    <span>-{voucherDiscount.toLocaleString()} VNĐ</span>
+                  </div>
+                )}
+                <div className="d-flex justify-content-between mb-2 border-top pt-2">
+                  <span>Thành tiền:</span>
+                  <span className="fw-bold">{(finalAmount + getTempServicesTotal()).toLocaleString()} VNĐ</span>
                 </div>
                 <div className="d-flex justify-content-between mb-2">
                   <span>Tiền cọc (20%):</span>
@@ -546,7 +893,7 @@ const BookingPage = () => {
               {currentReservationId && (
                 <Button
                   variant="info"
-                  className="w-100 fw-bold mt-3"
+                  className="w-100 fw-bold mt-2"
                   onClick={handleViewServices}
                 >
                   <FaConciergeBell className="me-2" />
@@ -567,13 +914,110 @@ const BookingPage = () => {
         </Col>
       </Row>
 
-      <BookingServices
-        show={showServices}
-        handleClose={() => setShowServices(false)}
-        reservationId={currentReservationId}
-        hotelId={room?.hotelId || 1}
-        onServicesAdded={handleServicesAdded}
-      />
+      {/* Modal chọn dịch vụ */}
+      <Modal show={showTempServicesModal} onHide={() => setShowTempServicesModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-primary text-white">
+          <Modal.Title>
+            <FaConciergeBell className="me-2" />
+            Chọn dịch vụ
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {loadingServices ? (
+            <div className="text-center p-5">
+              <Spinner animation="border" variant="primary" />
+              <p className="mt-3">Đang tải danh sách dịch vụ...</p>
+            </div>
+          ) : availableServices.length === 0 ? (
+            <Alert variant="info">Không có dịch vụ nào cho khách sạn này</Alert>
+          ) : (
+            <Row>
+              {availableServices.map(service => {
+                const existing = tempServices.find(s => s.id === service.id);
+                const quantity = existing ? existing.quantity : 0;
+                return (
+                  <Col md={6} key={service.id} className="mb-3">
+                    <Card className="h-100 shadow-sm">
+                      <Card.Body>
+                        <Card.Title className="text-primary">{service.name}</Card.Title>
+                        <Card.Text>
+                          <strong className="text-success">
+                            {service.price?.toLocaleString()} VNĐ
+                          </strong>
+                          <span className="text-muted ms-2">/ dịch vụ</span>
+                        </Card.Text>
+                        {service.description && (
+                          <Card.Text className="text-muted small">
+                            {service.description}
+                          </Card.Text>
+                        )}
+                        <div className="d-flex justify-content-between align-items-center mt-3">
+                          {quantity > 0 ? (
+                            <div className="d-flex align-items-center">
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => handleUpdateTempServiceQuantity(service.id, quantity - 1)}
+                              >
+                                -
+                              </Button>
+                              <span className="mx-3 fw-bold">{quantity}</span>
+                              <Button
+                                variant="outline-success"
+                                size="sm"
+                                onClick={() => handleUpdateTempServiceQuantity(service.id, quantity + 1)}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() => handleAddTempService(service)}
+                            >
+                              <FaPlus className="me-1" /> Thêm
+                            </Button>
+                          )}
+                          {quantity > 0 && (
+                            <Badge bg="warning">
+                              {(service.price * quantity).toLocaleString()} VNĐ
+                            </Badge>
+                          )}
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                );
+              })}
+            </Row>
+          )}
+          {tempServices.length > 0 && (
+            <div className="mt-4 p-3 bg-light rounded">
+              <h6 className="text-primary mb-2">Dịch vụ đã chọn:</h6>
+              {tempServices.map(service => (
+                <div key={service.id} className="d-flex justify-content-between mb-2">
+                  <span>{service.name} x {service.quantity}</span>
+                  <span className="fw-bold">{(service.price * service.quantity).toLocaleString()} VNĐ</span>
+                </div>
+              ))}
+              <hr />
+              <div className="d-flex justify-content-between">
+                <strong>Tổng dịch vụ:</strong>
+                <strong className="text-primary">{getTempServicesTotal().toLocaleString()} VNĐ</strong>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowTempServicesModal(false)}>
+            Đóng
+          </Button>
+          <Button variant="primary" onClick={() => setShowTempServicesModal(false)}>
+            Xác nhận
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };

@@ -37,10 +37,22 @@ const RoomManagement = () => {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [newStatus, setNewStatus] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [createTask, setCreateTask] = useState(true);
 
   // State cho room types
   const [roomTypes, setRoomTypes] = useState([]);
   const [floors, setFloors] = useState([]);
+  
+  // State cho staff list
+  const [staffList, setStaffList] = useState([]);
+  const [selectedStaffId, setSelectedStaffId] = useState("");
+  const [showStaffSelect, setShowStaffSelect] = useState(false);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+
+  // State cho modal xem tasks
+  const [showTasksModal, setShowTasksModal] = useState(false);
+  const [selectedRoomTasks, setSelectedRoomTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
 
   // 🔹 Load danh sách rooms
   const fetchRooms = async () => {
@@ -68,9 +80,44 @@ const RoomManagement = () => {
     }
   };
 
+  // 🔹 Load danh sách nhân viên Housekeeping từ API
+  const fetchStaffList = async () => {
+    try {
+      setLoadingStaff(true);
+      // Gọi API lấy danh sách nhân viên housekeeping
+      const res = await api.get("/user/staff/housekeeping");
+      setStaffList(res || []);
+    } catch (err) {
+      console.error("❌ Lỗi tải danh sách nhân viên:", err);
+      // Mock data fallback
+      setStaffList([
+        { id: 1, name: "Nguyễn Văn A", position: "Housekeeping Staff" },
+        { id: 2, name: "Trần Thị B", position: "Housekeeping Staff" },
+        { id: 3, name: "Lê Văn C", position: "Housekeeping Staff" },
+      ]);
+    } finally {
+      setLoadingStaff(false);
+    }
+  };
+
+  // 🔹 Lấy tasks theo phòng
+  const fetchTasksByRoom = async (roomId) => {
+    try {
+      setLoadingTasks(true);
+      const res = await api.get(`/tasks/housekeeping/room/${roomId}`);
+      setSelectedRoomTasks(res || []);
+    } catch (err) {
+      console.error("❌ Lỗi tải tasks:", err);
+      setSelectedRoomTasks([]);
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
   useEffect(() => {
     fetchRooms();
     fetchRoomTypes();
+    fetchStaffList();
   }, []);
 
   // 🔹 Extract unique floors từ rooms
@@ -85,7 +132,6 @@ const RoomManagement = () => {
   useEffect(() => {
     let filtered = rooms;
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(room =>
         room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -93,23 +139,20 @@ const RoomManagement = () => {
       );
     }
 
-    // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter(room => room.status === statusFilter);
     }
 
-    // Room type filter
     if (roomTypeFilter !== "all") {
       filtered = filtered.filter(room => room.roomType?.code === roomTypeFilter);
     }
 
-    // Floor filter
     if (floorFilter !== "all") {
       filtered = filtered.filter(room => room.floor === parseInt(floorFilter));
     }
 
     setFilteredRooms(filtered);
-    setCurrentPage(1); // Reset về trang 1 khi filter thay đổi
+    setCurrentPage(1);
   }, [searchTerm, statusFilter, roomTypeFilter, floorFilter, rooms]);
 
   // 🔹 Tính toán dữ liệu phân trang
@@ -119,16 +162,10 @@ const RoomManagement = () => {
   const totalPages = Math.ceil(filteredRooms.length / itemsPerPage);
 
   // 🔹 Tạo số trang cho pagination
-  const pageNumbers = [];
-  for (let i = 1; i <= totalPages; i++) {
-    pageNumbers.push(i);
-  }
-
-  // 🔹 Hiển thị tối đa 5 trang
   const getVisiblePages = () => {
     const delta = 2;
-    const range = [];
     const rangeWithDots = [];
+    let range = [];
 
     for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
       range.push(i);
@@ -151,11 +188,56 @@ const RoomManagement = () => {
     return rangeWithDots;
   };
 
+  // 🔹 Tạo housekeeping task - Cập nhật để dùng API đúng
+  const createHousekeepingTask = async (room, newStatus, assignedTo = null) => {
+    try {
+      const taskData = {
+        roomId: room.id,
+        roomNumber: room.roomNumber,
+        reservationId: room.currentReservationId || null,
+        type: newStatus === "maintenance" ? "Bảo trì phòng" : "Dọn phòng sau Check-out",
+        priority: newStatus === "maintenance" ? "HIGH" : "NORMAL",
+        assignedTo: assignedTo || selectedStaffId || null,
+        status: "PENDING",
+        notes: `Phòng ${room.roomNumber} cần ${newStatus === "maintenance" ? "bảo trì" : "dọn dẹp"}. ${newStatus === "maintenance" ? "Kiểm tra và sửa chữa các thiết bị hỏng." : "Dọn dẹp, thay ga giường, vệ sinh phòng."}`
+      };
+
+      const response = await api.post("/tasks/housekeeping", taskData);
+      console.log("✅ Đã tạo task:", response);
+      return response.data;
+    } catch (err) {
+      console.error("❌ Lỗi tạo task:", err);
+      return null;
+    }
+  };
+
+  // 🔹 Tạo task dọn phòng từ reservation
+  const createCleaningTaskFromReservation = async (reservationId, roomId, roomNumber) => {
+    try {
+      const response = await api.post(`/tasks/create-cleaning-task?reservationId=${reservationId}&roomId=${roomId}&roomNumber=${roomNumber}`);
+      console.log("✅ Đã tạo task dọn phòng:", response);
+      return response.data;
+    } catch (err) {
+      console.error("❌ Lỗi tạo task dọn phòng:", err);
+      return null;
+    }
+  };
+
   // 🔹 Xử lý mở modal change status
   const handleOpenStatusModal = (room) => {
     setSelectedRoom(room);
     setNewStatus(room.status);
+    setSelectedStaffId("");
+    setShowStaffSelect(false);
+    setCreateTask(true);
     setShowStatusModal(true);
+  };
+
+  // 🔹 Xử lý mở modal xem tasks
+  const handleOpenTasksModal = async (room) => {
+    setSelectedRoom(room);
+    await fetchTasksByRoom(room.id);
+    setShowTasksModal(true);
   };
 
   // 🔹 Xử lý thay đổi status
@@ -164,6 +246,8 @@ const RoomManagement = () => {
 
     try {
       setUpdating(true);
+      
+      const oldStatus = selectedRoom.status;
       
       // Cập nhật room status
       await api.put(`/rooms/${selectedRoom.id}`, {
@@ -174,10 +258,46 @@ const RoomManagement = () => {
         description: selectedRoom.description
       });
 
-      setSuccess(`✅ Đã cập nhật trạng thái phòng ${selectedRoom.roomNumber} thành ${getStatusLabel(newStatus)}`);
+      // Tạo task nếu cần
+      if (createTask && newStatus !== oldStatus) {
+        let taskResult = null;
+        
+        // Trường hợp 1: Chuyển sang Bảo trì
+        if (newStatus === "maintenance") {
+          taskResult = await createHousekeepingTask(selectedRoom, newStatus);
+          if (taskResult) {
+            setSuccess(`✅ Đã cập nhật trạng thái phòng ${selectedRoom.roomNumber} thành Bảo trì và tạo task #${taskResult.task?.id || ''} cho nhân viên!`);
+          } else {
+            setSuccess(`✅ Đã cập nhật trạng thái phòng ${selectedRoom.roomNumber} thành Bảo trì!`);
+          }
+        } 
+        // Trường hợp 2: Chuyển từ Đã thuê sang Có sẵn (cần dọn phòng)
+        else if (oldStatus === "occupied" && newStatus === "available") {
+          // Nếu có reservationId, dùng endpoint riêng
+          if (selectedRoom.currentReservationId) {
+            taskResult = await createCleaningTaskFromReservation(
+              selectedRoom.currentReservationId, 
+              selectedRoom.id, 
+              selectedRoom.roomNumber
+            );
+          } else {
+            taskResult = await createHousekeepingTask(selectedRoom, newStatus);
+          }
+          
+          if (taskResult) {
+            setSuccess(`✅ Đã cập nhật trạng thái phòng ${selectedRoom.roomNumber} thành Có sẵn và tạo task dọn phòng!`);
+          } else {
+            setSuccess(`✅ Đã cập nhật trạng thái phòng ${selectedRoom.roomNumber} thành Có sẵn!`);
+          }
+        }
+        else {
+          setSuccess(`✅ Đã cập nhật trạng thái phòng ${selectedRoom.roomNumber} thành ${getStatusLabel(newStatus)}`);
+        }
+      } else {
+        setSuccess(`✅ Đã cập nhật trạng thái phòng ${selectedRoom.roomNumber} thành ${getStatusLabel(newStatus)}`);
+      }
+
       setShowStatusModal(false);
-      
-      // Refresh danh sách
       fetchRooms();
       
     } catch (err) {
@@ -215,6 +335,42 @@ const RoomManagement = () => {
         return "Bảo trì";
       case "out_of_service":
         return "Ngừng hoạt động";
+      default:
+        return status;
+    }
+  };
+
+  // 🔹 Get task status badge
+  const getTaskStatusBadge = (status) => {
+    switch (status) {
+      case "PENDING":
+        return "secondary";
+      case "ASSIGNED":
+        return "info";
+      case "IN_PROGRESS":
+        return "warning";
+      case "COMPLETED":
+        return "success";
+      case "CANCELLED":
+        return "danger";
+      default:
+        return "secondary";
+    }
+  };
+
+  // 🔹 Get task status label
+  const getTaskStatusLabel = (status) => {
+    switch (status) {
+      case "PENDING":
+        return "Chờ xử lý";
+      case "ASSIGNED":
+        return "Đã phân công";
+      case "IN_PROGRESS":
+        return "Đang thực hiện";
+      case "COMPLETED":
+        return "Hoàn thành";
+      case "CANCELLED":
+        return "Đã hủy";
       default:
         return status;
     }
@@ -413,13 +569,20 @@ const RoomManagement = () => {
                           {room.description || "Không có mô tả"}
                         </small>
                       </td>
-                      <td>
+                      <td className="d-flex gap-2">
                         <Button
                           variant="outline-primary"
                           size="sm"
                           onClick={() => handleOpenStatusModal(room)}
                         >
                           Đổi trạng thái
+                        </Button>
+                        <Button
+                          variant="outline-info"
+                          size="sm"
+                          onClick={() => handleOpenTasksModal(room)}
+                        >
+                          Xem task
                         </Button>
                       </td>
                     </tr>
@@ -474,9 +637,9 @@ const RoomManagement = () => {
                       value={currentPage}
                       onChange={(e) => setCurrentPage(Number(e.target.value))}
                     >
-                      {pageNumbers.map(number => (
-                        <option key={number} value={number}>
-                          {number}
+                      {[...Array(totalPages).keys()].map(number => (
+                        <option key={number + 1} value={number + 1}>
+                          {number + 1}
                         </option>
                       ))}
                     </Form.Select>
@@ -489,7 +652,7 @@ const RoomManagement = () => {
       </Card>
 
       {/* Modal Change Status */}
-      <Modal show={showStatusModal} onHide={() => setShowStatusModal(false)}>
+      <Modal show={showStatusModal} onHide={() => setShowStatusModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>Đổi trạng thái phòng</Modal.Title>
         </Modal.Header>
@@ -507,11 +670,20 @@ const RoomManagement = () => {
                 </p>
               </div>
 
-              <Form.Group>
+              <Form.Group className="mb-3">
                 <Form.Label>Trạng thái mới</Form.Label>
                 <Form.Select
                   value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
+                  onChange={(e) => {
+                    setNewStatus(e.target.value);
+                    // Hiển thị chọn nhân viên nếu chọn Bảo trì hoặc Dọn phòng
+                    if (e.target.value === "maintenance" || 
+                        (selectedRoom.status === "occupied" && e.target.value === "available")) {
+                      setShowStaffSelect(true);
+                    } else {
+                      setShowStaffSelect(false);
+                    }
+                  }}
                 >
                   <option value="available">Có sẵn</option>
                   <option value="occupied">Đã thuê</option>
@@ -520,13 +692,49 @@ const RoomManagement = () => {
                 </Form.Select>
               </Form.Group>
 
+              {/* Option tạo task */}
+              {(newStatus === "maintenance" || 
+                (selectedRoom.status === "occupied" && newStatus === "available")) && (
+                <Form.Group className="mb-3">
+                  <Form.Check
+                    type="checkbox"
+                    label="Tạo task cho nhân viên Housekeeping"
+                    checked={createTask}
+                    onChange={(e) => setCreateTask(e.target.checked)}
+                  />
+                </Form.Group>
+              )}
+
+              {/* Chọn nhân viên */}
+              {showStaffSelect && createTask && (
+                <Form.Group className="mb-3">
+                  <Form.Label>Chọn nhân viên phụ trách</Form.Label>
+                  <Form.Select
+                    value={selectedStaffId}
+                    onChange={(e) => setSelectedStaffId(e.target.value)}
+                    disabled={loadingStaff}
+                  >
+                    <option value="">Chưa phân công</option>
+                    {staffList.map(staff => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.fullName} - {staff.role}
+                      </option>
+                    ))}
+                  </Form.Select>
+                  <Form.Text className="text-muted">
+                    Nếu không chọn, task sẽ được tạo và chờ phân công sau
+                  </Form.Text>
+                </Form.Group>
+              )}
+
               <Alert variant="info" className="mt-3">
                 <small>
                   💡 <strong>Lưu ý:</strong> 
                   <br/>- <strong>Có sẵn</strong>: Phòng sẵn sàng cho khách check-in
                   <br/>- <strong>Đã thuê</strong>: Phòng đang có khách
-                  <br/>- <strong>Bảo trì</strong>: Phòng đang được sửa chữa
+                  <br/>- <strong>Bảo trì</strong>: Phòng đang được sửa chữa (sẽ tạo task cho Housekeeping)
                   <br/>- <strong>Ngừng HĐ</strong>: Phòng không thể sử dụng
+                  <br/>- Khi chuyển từ <strong>Đã thuê → Có sẵn</strong>: Tự động tạo task dọn phòng
                 </small>
               </Alert>
             </div>
@@ -545,6 +753,61 @@ const RoomManagement = () => {
             disabled={updating || newStatus === selectedRoom?.status}
           >
             {updating ? <Spinner size="sm" /> : "Xác nhận"}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal View Tasks */}
+      <Modal show={showTasksModal} onHide={() => setShowTasksModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Danh sách Task của phòng {selectedRoom?.roomNumber}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {loadingTasks ? (
+            <div className="text-center p-4">
+              <Spinner animation="border" />
+              <p className="mt-2">Đang tải danh sách task...</p>
+            </div>
+          ) : selectedRoomTasks.length === 0 ? (
+            <Alert variant="info">Chưa có task nào cho phòng này</Alert>
+          ) : (
+            <Table responsive striped hover>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Loại</th>
+                  <th>Độ ưu tiên</th>
+                  <th>Trạng thái</th>
+                  <th>Nhân viên</th>
+                  <th>Ngày tạo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedRoomTasks.map(task => (
+                  <tr key={task.id}>
+                    <td>{task.id}</td>
+                    <td>{task.type}</td>
+                    <td>
+                      <Badge bg={task.priority === "HIGH" ? "danger" : "secondary"}>
+                        {task.priority === "HIGH" ? "Cao" : "Bình thường"}
+                      </Badge>
+                    </td>
+                    <td>
+                      <Badge bg={getTaskStatusBadge(task.status)}>
+                        {getTaskStatusLabel(task.status)}
+                      </Badge>
+                    </td>
+                    <td>{task.assignedTo ? `NV-${task.assignedTo}` : "Chưa phân công"}</td>
+                    <td>{task.createdAt ? new Date(task.createdAt).toLocaleDateString('vi-VN') : "N/A"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowTasksModal(false)}>
+            Đóng
           </Button>
         </Modal.Footer>
       </Modal>

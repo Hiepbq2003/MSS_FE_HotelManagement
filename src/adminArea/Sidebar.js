@@ -135,7 +135,15 @@ const Sidebar = ({ role }) => {
                         <FaUsers className="me-2" /> Staff Management
                     </Nav.Link>
                 )}
-
+                {canSeeManagerLinks && (
+                    <Nav.Link
+                        as={Link}
+                        to={`${basePath}/booking-management`}
+                        className={`text-white ${location.pathname === `${basePath}/booking-management` ? 'bg-primary rounded' : ''}`}
+                    >
+                        <FaUsers className="me-2" /> Booking Management
+                    </Nav.Link>
+                )}
                 <hr className="bg-secondary my-2" />
 
                 {/* ✅ Logout Button */}

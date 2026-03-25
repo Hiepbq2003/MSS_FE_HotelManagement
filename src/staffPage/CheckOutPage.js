@@ -11,25 +11,30 @@ import {
   Card,
   Badge,
   Modal,
+  Form,
+  InputGroup,
 } from "react-bootstrap";
 
 const CheckOutPage = () => {
   const [checkIns, setCheckIns] = useState([]);
+  const [filteredCheckIns, setFilteredCheckIns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState(null);
   const [checkoutDetails, setCheckoutDetails] = useState(null);
+  
+  // State cho tìm kiếm
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchType, setSearchType] = useState("all"); // all, name, room, reservation
 
   // 🔹 Tải danh sách khách đang check-in
   const fetchCheckedInGuests = async () => {
     try {
       setLoading(true);
-      // SỬA: dùng endpoint đúng /checkin/today (chữ thường)
       const res = await api.get("/bookings/checkin/current-guests");
       
-      // 🎯 Lọc chỉ những khách đang checked_in
       const activeCheckIns = res.filter(item => 
         item.status === "CHECKED_IN" || 
         item.status === "checked_in" ||
@@ -38,6 +43,7 @@ const CheckOutPage = () => {
       );
       
       setCheckIns(activeCheckIns);
+      setFilteredCheckIns(activeCheckIns);
       setError(null);
     } catch (err) {
       console.error("❌ Lỗi tải danh sách khách đang ở:", err);
@@ -50,6 +56,54 @@ const CheckOutPage = () => {
   useEffect(() => {
     fetchCheckedInGuests();
   }, []);
+
+  // 🔹 Xử lý tìm kiếm
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredCheckIns(checkIns);
+      return;
+    }
+
+    const term = searchTerm.toLowerCase().trim();
+    let filtered = [];
+
+    switch (searchType) {
+      case "name":
+        filtered = checkIns.filter(guest => 
+          guest.guestName?.toLowerCase().includes(term)
+        );
+        break;
+      case "room":
+        filtered = checkIns.filter(guest => 
+          guest.roomNumber?.toLowerCase().includes(term)
+        );
+        break;
+      case "reservation":
+        filtered = checkIns.filter(guest => 
+          guest.reservationCode?.toLowerCase().includes(term) ||
+          guest.reservationId?.toString().includes(term)
+        );
+        break;
+      default: // all
+        filtered = checkIns.filter(guest => 
+          guest.guestName?.toLowerCase().includes(term) ||
+          guest.roomNumber?.toLowerCase().includes(term) ||
+          guest.reservationCode?.toLowerCase().includes(term) ||
+          guest.reservationId?.toString().includes(term) ||
+          guest.roomType?.toLowerCase().includes(term) ||
+          guest.phone?.includes(term)
+        );
+    }
+
+    setFilteredCheckIns(filtered);
+  }, [searchTerm, searchType, checkIns]);
+
+  // 🔹 Reset tìm kiếm
+  const resetSearch = () => {
+    setSearchTerm("");
+    setSearchType("all");
+    setFilteredCheckIns(checkIns);
+  };
 
   // 🔹 Xác nhận checkout
   const confirmCheckOut = (guest) => {
@@ -64,7 +118,6 @@ const CheckOutPage = () => {
     try {
       setLoading(true);
       
-      // 🎯 Gọi API checkout với reservationId (từ backend)
       const reservationId = selectedGuest.reservationId;
       
       if (!reservationId) {
@@ -73,12 +126,10 @@ const CheckOutPage = () => {
       
       console.log("📤 Gửi request checkout cho reservation:", reservationId);
       
-      // SỬA: dùng endpoint /api/bookings/{id}/check-out từ BookingController
       const res = await api.put(`/bookings/${reservationId}/check-out`);
       
       console.log("✅ Checkout Response:", res);
 
-      // 🎯 Hiển thị thông tin thanh toán nếu có
       if (res.data?.message) {
         setCheckoutDetails({
           guestName: selectedGuest.guestName,
@@ -96,6 +147,7 @@ const CheckOutPage = () => {
       setTimeout(() => {
         fetchCheckedInGuests();
         setCheckoutDetails(null);
+        resetSearch();
       }, 2000);
       
     } catch (err) {
@@ -177,22 +229,117 @@ const CheckOutPage = () => {
         </Alert>
       )}
 
+      {/* Thanh tìm kiếm */}
+      <Card className="shadow-sm mb-4">
+        <Card.Body>
+          <Row className="align-items-end">
+            <Col md={8}>
+              <Form.Group>
+                <Form.Label>Tìm kiếm</Form.Label>
+                <InputGroup>
+                  <InputGroup.Text>
+                    <i className="fas fa-search"></i>
+                  </InputGroup.Text>
+                  <Form.Control
+                    type="text"
+                    placeholder="Nhập từ khóa tìm kiếm..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  {searchTerm && (
+                    <Button 
+                      variant="outline-secondary" 
+                      onClick={resetSearch}
+                    >
+                      <i className="fas fa-times"></i>
+                    </Button>
+                  )}
+                </InputGroup>
+              </Form.Group>
+            </Col>
+            <Col md={3}>
+              <Form.Group>
+                <Form.Label>Tìm theo</Form.Label>
+                <Form.Select
+                  value={searchType}
+                  onChange={(e) => setSearchType(e.target.value)}
+                >
+                  <option value="all">Tất cả</option>
+                  <option value="name">Tên khách hàng</option>
+                  <option value="room">Số phòng</option>
+                  <option value="reservation">Mã đặt phòng</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={1}>
+              <Button 
+                variant="outline-secondary" 
+                onClick={resetSearch}
+                className="w-100"
+              >
+                Reset
+              </Button>
+            </Col>
+          </Row>
+
+          {/* Hiển thị kết quả tìm kiếm */}
+          {searchTerm && (
+            <div className="mt-3">
+              <Badge bg="info">
+                Tìm thấy: {filteredCheckIns.length} / {checkIns.length} kết quả
+              </Badge>
+              {filteredCheckIns.length === 0 && (
+                <span className="text-muted ms-2">
+                  Không tìm thấy khách nào phù hợp
+                </span>
+              )}
+            </div>
+          )}
+        </Card.Body>
+      </Card>
+
       {/* Danh sách khách đang ở */}
       <Card className="shadow-sm">
         <Card.Header className="bg-light">
-          <h5 className="mb-0">
-            👥 Khách đang lưu trú 
-            <Badge bg="primary" className="ms-2">{checkIns.length}</Badge>
-          </h5>
+          <div className="d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">
+              👥 Khách đang lưu trú 
+              <Badge bg="primary" className="ms-2">
+                {filteredCheckIns.length}
+              </Badge>
+            </h5>
+            {searchTerm && (
+              <Badge bg="secondary">
+                Đang tìm: "{searchTerm}"
+              </Badge>
+            )}
+          </div>
         </Card.Header>
         <Card.Body>
-          {checkIns.length === 0 ? (
+          {filteredCheckIns.length === 0 ? (
             <div className="text-center py-4">
               <div className="text-muted mb-2">
                 <i className="fas fa-bed fa-2x"></i>
               </div>
-              <h5>Không có khách nào đang ở</h5>
-              <p className="text-muted">Tất cả phòng đều trống</p>
+              <h5>
+                {searchTerm 
+                  ? "Không tìm thấy khách hàng phù hợp" 
+                  : "Không có khách nào đang ở"}
+              </h5>
+              <p className="text-muted">
+                {searchTerm 
+                  ? "Vui lòng thử lại với từ khóa khác" 
+                  : "Tất cả phòng đều trống"}
+              </p>
+              {searchTerm && (
+                <Button 
+                  variant="outline-primary" 
+                  onClick={resetSearch}
+                  size="sm"
+                >
+                  Xóa tìm kiếm
+                </Button>
+              )}
             </div>
           ) : (
             <Table responsive hover className="align-middle">
@@ -210,7 +357,7 @@ const CheckOutPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {checkIns.map((guest, index) => (
+                {filteredCheckIns.map((guest, index) => (
                   <tr key={guest.reservationId || index}>
                     <td><strong>{index + 1}</strong></td>
                     <td>
@@ -221,7 +368,11 @@ const CheckOutPage = () => {
                     <td>
                       <div>
                         <strong>{guest.guestName}</strong>
-                        {guest.phone && <div className="text-muted small">{guest.phone}</div>}
+                        {guest.phone && (
+                          <div className="text-muted small">
+                            <i className="fas fa-phone"></i> {guest.phone}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td>
@@ -270,7 +421,7 @@ const CheckOutPage = () => {
       </Card>
 
       {/* Modal xác nhận checkout */}
-      <Modal show={showConfirmModal} onHide={() => setShowConfirmModal(false)}>
+      <Modal show={showConfirmModal} onHide={() => setShowConfirmModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>✅ Xác nhận trả phòng</Modal.Title>
         </Modal.Header>
@@ -280,12 +431,21 @@ const CheckOutPage = () => {
               <p>Bạn có chắc muốn trả phòng cho khách hàng sau?</p>
               
               <div className="border p-3 rounded bg-light">
-                <p><strong>Mã đặt phòng:</strong> {selectedGuest.reservationCode || selectedGuest.reservationId}</p>
-                <p><strong>Khách hàng:</strong> {selectedGuest.guestName}</p>
-                <p><strong>Phòng:</strong> {selectedGuest.roomNumber}</p>
-                <p><strong>Loại phòng:</strong> {selectedGuest.roomType}</p>
-                <p><strong>Check-in:</strong> {new Date(selectedGuest.checkInDate).toLocaleString('vi-VN')}</p>
-                <p><strong>Check-out dự kiến:</strong> {new Date(selectedGuest.checkOutDate).toLocaleString('vi-VN')}</p>
+                <Row>
+                  <Col md={6}>
+                    <p><strong>Mã đặt phòng:</strong> {selectedGuest.reservationCode || selectedGuest.reservationId}</p>
+                    <p><strong>Khách hàng:</strong> {selectedGuest.guestName}</p>
+                    <p><strong>Phòng:</strong> {selectedGuest.roomNumber}</p>
+                    <p><strong>Loại phòng:</strong> {selectedGuest.roomType}</p>
+                  </Col>
+                  <Col md={6}>
+                    <p><strong>Check-in:</strong> {new Date(selectedGuest.checkInDate).toLocaleString('vi-VN')}</p>
+                    <p><strong>Check-out dự kiến:</strong> {new Date(selectedGuest.checkOutDate).toLocaleString('vi-VN')}</p>
+                    {selectedGuest.phone && (
+                      <p><strong>SĐT:</strong> {selectedGuest.phone}</p>
+                    )}
+                  </Col>
+                </Row>
               </div>
 
               <Alert variant="warning" className="mt-3">

@@ -29,6 +29,7 @@ import VoucherManagement from "../admin/VoucherManagement";
 import ManagerDashboard from '../manager/ManagerDashboard';
 import MyBookingsPage from '../publicPage/MyBookingsPage';
 import BookingDetailPage from '../publicPage/BookingDetailPage';
+import BookingManagement from '../manager/BookingManagement';
 function Routers() {
   return (
     <HashRouter>
@@ -60,6 +61,7 @@ function Routers() {
           <Route path="room-management" element={<RoomManagement />} />
           <Route path="customer-management" element={<CustomerManagement />} />
           <Route path="amenities" element={<HotelAmenityManagement />} />
+          <Route path="booking-management" element={<BookingManagement />} />
         </Route>
 
         {/* *** ROUTE DÀNH CHO ADMIN *** */}
