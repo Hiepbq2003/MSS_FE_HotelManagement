@@ -48,7 +48,7 @@ graph TD
 ## 🚀 Repositories
 
 - **Backend:** [MSS301_hotel_management_project](https://github.com/DangNgocThanhk18/MSS301_hotel_management_project)
-- **Frontend:** [Hotel Management Frontend](https://github.com/DangNgocThanhk18/hotel_management) *(Assumed based on backend naming)*
+- **Frontend:** [Hotel Management Frontend](https://github.com/Hiepbq2003/Microservice_HotelManagement) 
 
 ---
 
