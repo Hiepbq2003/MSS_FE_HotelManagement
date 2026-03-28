@@ -1,70 +1,125 @@
-# Getting Started with Create React App
+# 🏨 Hotel Management System (HMS)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A comprehensive, microservices-based Hotel Management System designed for efficient hotel operations, featuring a robust Spring Boot backend and a modern React frontend.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 🏗️ Architecture Overview
 
-### `npm start`
+The system follows a **Microservices Architecture** with a central **API Gateway** managing traffic to various specialized services. 
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```mermaid
+graph TD
+    Client[React Frontend] --> Gateway[HotelCloudGateway :8000]
+    
+    Gateway --> UserSvc[User-Service :8001]
+    Gateway --> HotelSvc[Hotel-Service :8002]
+    Gateway --> RoomSvc[Room-Service :8003]
+    Gateway --> BookingSvc[Booking-Service :8004]
+    Gateway --> TaskSvc[Task-Service :8006]
+    Gateway --> ReviewSvc[Review-Service :8007]
+    Gateway --> PaymentSvc[Payment-Service :8008]
+    
+    subgraph "Backend Services"
+        UserSvc
+        HotelSvc
+        RoomSvc
+        BookingSvc
+        TaskSvc
+        ReviewSvc
+        PaymentSvc
+        NotifSvc[Notification-Service]
+        ReportSvc[Report-Service]
+    end
+    
+    subgraph "Infrastructure"
+        DB[(MySQL Database)]
+        Redis[(Redis Cache)]
+    end
+    
+    UserSvc --> DB
+    HotelSvc --> DB
+    RoomSvc --> DB
+    BookingSvc --> DB
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+## 🚀 Repositories
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- **Backend:** [MSS301_hotel_management_project](https://github.com/DangNgocThanhk18/MSS301_hotel_management_project)
+- **Frontend:** [Hotel Management Frontend](https://github.com/DangNgocThanhk18/hotel_management) *(Assumed based on backend naming)*
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## ✨ Key Features
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 👤 User & Role Management
+- Secure authentication with **JWT (JSON Web Tokens)**.
+- Role-based access control: Admin, Manager, Staff, and Customer.
+- Professional profiles and activity tracking.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 🏨 Hotel & Room Operations
+- Multi-hotel management capabilities.
+- Room inventory tracking with real-time availability.
+- Dynamic pricing and room category management.
 
-### `npm run eject`
+### 📅 Booking & Reservation
+- End-to-end booking flow for customers.
+- Walk-in booking support for staff.
+- Voucher and discount system integration.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### 🧹 Operational Tools
+- **Task Management:** Specialized workflows for Housekeeping and Maintenance.
+- **Reporting:** Data-driven insights via specialized Report-Service.
+- **Reviews:** Comprehensive feedback system for guests.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 🛠️ Tech Stack
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Backend (Java/Spring)
+- **Framework:** Spring Boot 3.4.3
+- **Microservices:** Spring Cloud (Gateway, OpenFeign)
+- **Security:** Spring Security + JWT
+- **Persistence:** Spring Data JPA + Hibernate
+- **Database:** MySQL
+- **Others:** Lombok, Maven
 
-## Learn More
+### Frontend (React)
+- **Library:** React 18
+- **UI Frameworks:** Bootstrap 5, MDB React UI Kit
+- **Charts:** Recharts, Chart.js
+- **Routing:** React Router 7
+- **Icons:** React Icons
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+---
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 🚦 Getting Started
 
-### Code Splitting
+### Prerequisites
+- **Java 17+**
+- **Node.js 18+**
+- **MySQL 8+**
+- **Maven 3.8+**
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### Backend Setup
+1. Clone the backend repository.
+2. Configure `application.properties` in each service with your MySQL credentials.
+3. Run `mvn clean install` in the root of the backend project.
+4. Start the services in the following order:
+   - `User-Service` (Port 8001)
+   - Specialized Services (`Hotel-Service`, `Room-Service`, etc.)
+   - `HotelCloudGateway` (Port 8000)
 
-### Analyzing the Bundle Size
+### Frontend Setup
+1. Navigate to the `hotel_management` directory.
+2. Run `npm install` to install dependencies.
+3. Run `npm start` to launch the development server.
+4. Access the application at `http://localhost:3000`.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+---
 
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 📞 Contact & Contributors
+- **Author:** Dang Ngoc Thanh
+- **Github:** [@DangNgocThanhk18](https://github.com/DangNgocThanhk18)
